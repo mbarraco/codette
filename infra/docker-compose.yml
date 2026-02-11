@@ -19,6 +19,14 @@ services:
       timeout: 5s
       retries: 5
 
+  gcs:
+    image: fsouza/fake-gcs-server
+    command: ["-scheme", "http", "-port", "4443"]
+    ports:
+      - "${GCS_PORT:-4443}:4443"
+    volumes:
+      - gcs_data:/data
+
   api:
     build:
       context: ../backend
@@ -27,6 +35,7 @@ services:
       - ../.env
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      STORAGE_EMULATOR_HOST: http://gcs:4443
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -41,6 +50,7 @@ services:
       - ../.env
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      STORAGE_EMULATOR_HOST: http://gcs:4443
     depends_on:
       db:
         condition: service_healthy
@@ -71,3 +81,4 @@ services:
 
 volumes:
   postgres_data:
+  gcs_data:

@@ -3,18 +3,19 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.core.settings import settings
+from app.core.settings import get_settings
+from app.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return settings.database_url
+    return get_settings().database_url
 
 
 def run_migrations_offline() -> None:

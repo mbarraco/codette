@@ -2,7 +2,8 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 
 .PHONY: setup up down build logs ps db-shell \
         up-api up-web up-worker \
-        migrate restart clean
+        migrate restart clean \
+        test test-integration
 
 ## ---------- First-time setup ----------
 
@@ -52,6 +53,13 @@ db-shell: ## Open a psql shell
 
 migrate: ## Run Alembic migrations inside the API container
 	$(COMPOSE) exec api alembic upgrade head
+
+## ---------- Tests ----------
+
+test: test-integration ## Run all tests
+
+test-integration: ## Run integration tests against codette_test DB
+	cd backend && uv run pytest tests/integration/ -v
 
 ## ---------- Tool images ----------
 
