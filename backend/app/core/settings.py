@@ -13,7 +13,9 @@ class Settings(BaseSettings):
 
 
 class TestSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env.test", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env.test", env_file_encoding="utf-8", extra="ignore"
+    )
 
     database_url: str
     storage_bucket: str

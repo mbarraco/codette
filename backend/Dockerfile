@@ -23,3 +23,8 @@ CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 # Worker target
 FROM base AS worker
 CMD ["python", "-m", "app.worker.main"]
+
+# Test target
+FROM base AS test
+RUN pip install --no-cache-dir ".[dev]"
+CMD ["pytest", "tests/", "-v"]

@@ -54,10 +54,8 @@ def test_sea_happy_path(
     # assert run.submission_id == submission.id
 
     # -- Act 3: Worker writes submission_input.json to object storage ----
-    #    (will fail until StorageAdapter is implemented)
-    # from app.adapters.storage import StorageAdapter
-    # storage = StorageAdapter()
-    # submission_input_uri = storage.write_submission_input(run, problem, submission)
+    #    (will fail until the worker is wired to write submission_input.json)
+    # submission_input_uri = storage.upload(...)
     # assert submission_input_uri.endswith("submission_input.json")
 
     # -- Act 4: Worker invokes the Runner --------------------------------
