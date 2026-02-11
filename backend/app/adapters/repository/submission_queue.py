@@ -17,7 +17,7 @@ class SubmissionQueueRepository:
             .where(SubmissionQueue.last_checked_at.is_(None))
             .order_by(SubmissionQueue.created_at.asc())
             .limit(1)
-            .with_for_update(skip_locked=True)
+            .with_for_update(of=SubmissionQueue, skip_locked=True)
         )
         entry = db.scalars(stmt).first()
         if entry is None:

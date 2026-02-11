@@ -31,11 +31,16 @@ services:
       - ../.env
     environment:
       PYTHONBREAKPOINT: ${PYTHONBREAKPOINT:-IPython.core.debugger.set_trace}
+    command: ["sh", "/app/scripts/start-api-dev.sh"]
+    volumes:
+      - ../backend:/app
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
+      gcs:
+        condition: service_started
 
   worker:
     build:
@@ -45,6 +50,8 @@ services:
       - ../.env
     environment:
       PYTHONBREAKPOINT: ${PYTHONBREAKPOINT:-IPython.core.debugger.set_trace}
+    volumes:
+      - ../backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -67,7 +74,13 @@ services:
       - ../.env
     environment:
       DATABASE_URL: postgresql+psycopg://codette:codette@db:5432/codette_test
+      STORAGE_BUCKET: codette-test
       PYTHONBREAKPOINT: ${PYTHONBREAKPOINT:-IPython.core.debugger.set_trace}
+      WAIT_RETRIES: "40"
+      WAIT_SLEEP_SECONDS: "1"
+    command: ["sh", "/app/scripts/run-tests.sh"]
+    volumes:
+      - ../backend:/app
     depends_on:
       db:
         condition: service_healthy

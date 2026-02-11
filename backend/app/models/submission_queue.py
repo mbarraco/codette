@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, BaseMixin
 
@@ -15,3 +15,5 @@ class SubmissionQueue(BaseMixin, Base):
     last_checked_at: Mapped[datetime | None] = mapped_column(nullable=True)
     attempt_count: Mapped[int] = mapped_column(default=0)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    submission: Mapped["Submission"] = relationship(lazy="joined")  # noqa: F821

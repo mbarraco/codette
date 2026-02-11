@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(docker compose:*)",
-      "Bash(pre-commit run:*)"
+      "Bash(pre-commit run:*)",
+      "Bash(uv sync:*)",
+      "Bash(PGPASSWORD=codette psql:*)",
+      "Bash(make test)",
+      "Bash(.venv/bin/python -m pytest tests/services/ -v)",
+      "Bash(ls:*)"
     ]
   }
 }

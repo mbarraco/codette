@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+python /app/scripts/wait_for_dependencies.py
+
+exec pytest tests/ -v "$@"
