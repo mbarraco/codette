@@ -47,11 +47,13 @@ def test_sea_happy_path(
 
     # -- Assert: runner output exists in storage ---------------------------
     assert run.runner_output_uri is not None
+    assert f"/runs/{run.uuid}/" in run.runner_output_uri
     runner_blob = storage.download(run.runner_output_uri)
     assert b"runner_output.v1" in runner_blob
 
     # -- Assert: grader output exists in storage ---------------------------
     assert run.grader_output_uri is not None
+    assert f"/runs/{run.uuid}/" in run.grader_output_uri
     grader_blob = storage.download(run.grader_output_uri)
     assert b"grader_output.v1" in grader_blob
 

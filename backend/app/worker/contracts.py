@@ -26,7 +26,7 @@ class ExecutionOutcome(TypedDict):
 
 
 class RunnerRequest(TypedDict):
-    run_id: int
+    run_uuid: str
     submission_id: int
     problem_id: int
     submission_artifact_uri: str
@@ -36,7 +36,7 @@ class RunnerRequest(TypedDict):
 
 class RunnerOutput(TypedDict):
     schema_version: Literal["runner_output.v1"]
-    run_id: int
+    run_uuid: str
     status: RunnerResultStatus
     stdout: str
     stderr: str
@@ -45,7 +45,7 @@ class RunnerOutput(TypedDict):
 
 
 class GraderRequest(TypedDict):
-    run_id: int
+    run_uuid: str
     submission_id: int
     problem_id: int
     runner_output_uri: str
@@ -55,7 +55,7 @@ class GraderRequest(TypedDict):
 
 class GraderOutput(TypedDict):
     schema_version: Literal["grader_output.v1"]
-    run_id: int
+    run_uuid: str
     verdict: GraderVerdict
     summary: str
     metadata: dict[str, object] | None

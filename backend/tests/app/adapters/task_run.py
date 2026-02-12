@@ -21,7 +21,7 @@ class FakeRunnerAdapter:
     def execute(self, request: RunnerRequest) -> ExecutionOutcome:
         output: RunnerOutput = {
             "schema_version": "runner_output.v1",
-            "run_id": request["run_id"],
+            "run_uuid": request["run_uuid"],
             "status": RunnerResultStatus.OK,
             "stdout": "3\n",
             "stderr": "",
@@ -46,7 +46,7 @@ class FakeGraderAdapter:
     def execute(self, request: GraderRequest) -> ExecutionOutcome:
         output: GraderOutput = {
             "schema_version": "grader_output.v1",
-            "run_id": request["run_id"],
+            "run_uuid": request["run_uuid"],
             "verdict": GraderVerdict.PASS,
             "summary": "All tests passed",
             "metadata": None,

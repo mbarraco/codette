@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import os
 import sys
-import time
+from collections.abc import Callable
 
 from google.cloud import storage
 from sqlalchemy import create_engine, text
+from tenacity import RetryCallState, Retrying, stop_after_attempt, wait_fixed
 
 
 def _get_int_env(name: str, default: int) -> int:
@@ -17,31 +18,53 @@ def _get_int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer, got {value!r}") from exc
 
 
+def _run_with_retry(
+    *, label: str, retries: int, sleep_seconds: float, check: Callable[[], None]
+) -> None:
+    def _before_sleep(retry_state: RetryCallState) -> None:
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
+        print(
+            f"[wait] {label} not ready ({retry_state.attempt_number}/{retries}): {exc}",
+            file=sys.stderr,
+        )
+
+    retrying = Retrying(
+        stop=stop_after_attempt(retries),
+        wait=wait_fixed(sleep_seconds),
+        before_sleep=_before_sleep,
+        reraise=True,
+    )
+
+    for attempt in retrying:
+        with attempt:
+            check()
+        print(
+            f"[wait] {label} ready on attempt "
+            f"{attempt.retry_state.attempt_number}/{retries}"
+        )
+        return
+
+
 def _wait_for_db(retries: int, sleep_seconds: float) -> None:
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL is required to wait for Postgres readiness")
 
-    last_error: Exception | None = None
-    for attempt in range(1, retries + 1):
-        try:
-            engine = create_engine(database_url)
+    engine = create_engine(database_url)
+    try:
+
+        def _check_db() -> None:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
-            engine.dispose()
-            print(f"[wait] db ready on attempt {attempt}/{retries}")
-            return
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            print(
-                f"[wait] db not ready ({attempt}/{retries}): {exc}",
-                file=sys.stderr,
-            )
-            if attempt < retries:
-                time.sleep(sleep_seconds)
-    raise RuntimeError(
-        f"DB readiness check failed after {retries} attempts"
-    ) from last_error
+
+        _run_with_retry(
+            label="db",
+            retries=retries,
+            sleep_seconds=sleep_seconds,
+            check=_check_db,
+        )
+    finally:
+        engine.dispose()
 
 
 def _wait_for_storage(retries: int, sleep_seconds: float) -> None:
@@ -52,37 +75,26 @@ def _wait_for_storage(retries: int, sleep_seconds: float) -> None:
         )
 
     emulator_host = os.getenv("STORAGE_EMULATOR_HOST")
-    last_error: Exception | None = None
-    for attempt in range(1, retries + 1):
-        try:
-            client = storage.Client()
-            bucket = client.bucket(storage_bucket)
-            if not bucket.exists():
-                if emulator_host:
-                    client.create_bucket(bucket)
-                    print(
-                        f"[wait] created missing emulator bucket {storage_bucket!r} "
-                        f"on attempt {attempt}/{retries}"
-                    )
-                else:
-                    raise RuntimeError(
-                        f"Bucket {storage_bucket!r} does not exist and no "
-                        "STORAGE_EMULATOR_HOST is configured."
-                    )
+
+    def _check_storage() -> None:
+        client = storage.Client()
+        bucket = client.bucket(storage_bucket)
+        if not bucket.exists():
+            if emulator_host:
+                client.create_bucket(bucket)
+                print(f"[wait] created missing emulator bucket {storage_bucket!r}")
             else:
-                print(f"[wait] storage ready on attempt {attempt}/{retries}")
-            return
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            print(
-                f"[wait] storage not ready ({attempt}/{retries}): {exc}",
-                file=sys.stderr,
-            )
-            if attempt < retries:
-                time.sleep(sleep_seconds)
-    raise RuntimeError(
-        f"Storage readiness check failed after {retries} attempts"
-    ) from last_error
+                raise RuntimeError(
+                    f"Bucket {storage_bucket!r} does not exist and no "
+                    "STORAGE_EMULATOR_HOST is configured."
+                )
+
+    _run_with_retry(
+        label="storage",
+        retries=retries,
+        sleep_seconds=sleep_seconds,
+        check=_check_storage,
+    )
 
 
 def main() -> int:

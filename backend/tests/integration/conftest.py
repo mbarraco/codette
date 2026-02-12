@@ -10,6 +10,7 @@ from app.adapters.repository.submission_queue import SubmissionQueueRepository
 from app.adapters.storage import StorageAdapter
 from app.models import Submission, SubmissionQueue
 from app.services.submission import create_submission
+from app.worker.request_factory import ExecutionRequestFactory
 from app.worker.sea import SeaWorker
 from tests.app.adapters.task_run import FakeGraderAdapter, FakeRunnerAdapter
 
@@ -48,4 +49,5 @@ def sea_worker(db: Session, storage: StorageAdapter) -> SeaWorker:
         storage=storage,
         runner_adapter=FakeRunnerAdapter(storage),
         grader_adapter=FakeGraderAdapter(storage),
+        request_factory=ExecutionRequestFactory(storage_bucket=storage.bucket_name),
     )
