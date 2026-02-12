@@ -1,10 +1,10 @@
-"""API-layer tests for POST /submissions."""
+"""API-layer tests for /submissions endpoints."""
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.adapters.storage import StorageAdapter
-from app.models import Problem, Submission
+from app.models import Problem, Run, Submission, SubmissionEvaluation, SubmissionQueue
 
 
 def test_returns_201_with_submission(client: TestClient, problem: Problem) -> None:
@@ -62,3 +62,41 @@ def test_missing_problem_id_returns_422(client: TestClient) -> None:
 def test_empty_body_returns_422(client: TestClient) -> None:
     response = client.post("/submissions/")
     assert response.status_code == 422
+
+
+def test_list_submissions_returns_nested_data(
+    client: TestClient, db: Session, problem: Problem
+) -> None:
+    sub = Submission(artifact_uri="gs://bucket/solution.py", problem_id=problem.id)
+    db.add(sub)
+    db.flush()
+
+    run = Run(submission_id=sub.id, status="completed")
+    db.add(run)
+    db.flush()
+
+    evaluation = SubmissionEvaluation(run_id=run.id, submission_id=sub.id, success=True)
+    queue_entry = SubmissionQueue(submission_id=sub.id, attempt_count=1)
+    db.add_all([evaluation, queue_entry])
+    db.flush()
+    db.expire_all()
+
+    response = client.get("/submissions/")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) >= 1
+
+    detail = next(s for s in body if s["id"] == sub.id)
+    assert len(detail["runs"]) == 1
+    assert detail["runs"][0]["status"] == "completed"
+    assert len(detail["evaluations"]) == 1
+    assert detail["evaluations"][0]["success"] is True
+    assert len(detail["queue_entries"]) == 1
+    assert detail["queue_entries"][0]["attempt_count"] == 1
+
+
+def test_list_submissions_empty(client: TestClient) -> None:
+    response = client.get("/submissions/")
+    assert response.status_code == 200
+    assert response.json() == []

@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.models import Submission
+from app.models import Submission, SubmissionQueue
 
 
 class SubmissionRepository:
@@ -10,3 +10,18 @@ class SubmissionRepository:
         db.add(submission)
         db.flush()
         return submission
+
+    def list_all(self, db: Session) -> list[Submission]:
+        """Return all submissions with related entities, newest first."""
+        return list(
+            db.query(Submission)
+            .options(
+                selectinload(Submission.runs),
+                selectinload(Submission.queue_entries).noload(
+                    SubmissionQueue.submission
+                ),
+                selectinload(Submission.evaluations),
+            )
+            .order_by(Submission.created_at.desc())
+            .all()
+        )

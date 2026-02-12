@@ -16,4 +16,6 @@ class SubmissionQueue(BaseMixin, Base):
     attempt_count: Mapped[int] = mapped_column(default=0)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    submission: Mapped["Submission"] = relationship(lazy="joined")  # noqa: F821
+    submission: Mapped["Submission"] = relationship(  # noqa: F821
+        back_populates="queue_entries", lazy="joined"
+    )

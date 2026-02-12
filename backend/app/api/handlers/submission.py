@@ -14,3 +14,8 @@ def handle_create_submission(db: Session, problem_id: int, code: str) -> Submiss
     submission = create_submission(db, repo, storage, problem_id, code)
     db.commit()
     return submission
+
+
+def handle_list_submissions(db: Session) -> list[Submission]:
+    repo = SubmissionRepository()
+    return repo.list_all(db)
