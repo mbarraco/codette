@@ -1,12 +1,18 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.models import SubmissionQueue
+from app.models import Submission, SubmissionQueue
 
 
 class SubmissionQueueRepository:
+    def create(self, db: Session, submission_id: int) -> SubmissionQueue:
+        entry = SubmissionQueue(submission_id=submission_id)
+        db.add(entry)
+        db.flush()
+        return entry
+
     def claim_next(self, db: Session) -> SubmissionQueue | None:
         """Claim the oldest unclaimed queue entry.
 
@@ -27,6 +33,22 @@ class SubmissionQueueRepository:
         entry.attempt_count += 1
         db.flush()
         return entry
+
+    def list_all(self, db: Session) -> list[SubmissionQueue]:
+        stmt = (
+            select(SubmissionQueue)
+            .options(
+                selectinload(SubmissionQueue.submission).selectinload(
+                    Submission.problem
+                ),
+                selectinload(SubmissionQueue.submission).selectinload(Submission.runs),
+                selectinload(SubmissionQueue.submission).selectinload(
+                    Submission.evaluations
+                ),
+            )
+            .order_by(SubmissionQueue.created_at.desc())
+        )
+        return list(db.scalars(stmt).all())
 
     def mark_failed(self, db: Session, entry: SubmissionQueue, error: str) -> None:
         """Record a failure on a queue entry."""

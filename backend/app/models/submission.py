@@ -1,4 +1,5 @@
 import uuid as _uuid
+from datetime import datetime
 
 from sqlalchemy import ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,6 +12,7 @@ class Submission(BaseMixin, Base):
 
     artifact_uri: Mapped[str] = mapped_column(Text, nullable=False)
     problem_id: Mapped[int] = mapped_column(ForeignKey("problems.id"), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True, default=None)
 
     problem: Mapped["Problem"] = relationship(lazy="noload")  # noqa: F821
     runs: Mapped[list["Run"]] = relationship(back_populates="submission", lazy="noload")  # noqa: F821

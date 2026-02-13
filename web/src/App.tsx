@@ -18,10 +18,6 @@ function App() {
       <p className={styles.status}>
         API Health: <strong>{health ?? "loading..."}</strong>
       </p>
-      <p className={styles.hint}>
-        Navigate to <code>/problem/:uuid</code> to view a problem and submit a
-        solution.
-      </p>
     </div>
   );
 }

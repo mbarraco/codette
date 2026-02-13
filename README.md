@@ -13,7 +13,7 @@ codette/
 │   │   └── worker/    # Background job processor
 │   └── migrations/    # Alembic database migrations
 ├── web/               # React frontend (Vite + TypeScript)
-├── images/
+├── jobs/
 │   ├── runner/        # Code execution sandbox
 │   └── grader/        # Output comparison service
 └── infra/             # Docker Compose configuration
@@ -35,6 +35,10 @@ cp .env.example .env
 
 # Start all services
 docker compose -f infra/docker-compose.yml up --build
+
+# Apply migrations and seed development data
+make migrate
+make seed
 
 # In another terminal, verify services:
 # API health check
@@ -132,3 +136,12 @@ See `.env.example` for available configuration options.
 | DATABASE_URL | postgresql://... | Full database URL |
 | API_PORT | 8000 | API server port |
 | WEB_PORT | 5173 | Web dev server port |
+
+## Development Seed Data
+
+```bash
+# Requires running API + DB containers
+make seed
+```
+
+The seed command is idempotent and upserts a small set of sample problems for local development.

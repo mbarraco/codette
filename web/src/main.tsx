@@ -5,6 +5,8 @@ import "./index.css";
 import App from "./App.tsx";
 import ProblemPage from "./ProblemPage.tsx";
 import ProblemsPage from "./ProblemsPage.tsx";
+import MonitorPage from "./MonitorPage.tsx";
+import SubmissionsPage from "./SubmissionsPage.tsx";
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +20,18 @@ function Layout({ children }: { children: React.ReactNode }) {
           className={({ isActive }) => (isActive ? "active" : "")}
         >
           Problems
+        </NavLink>
+        <NavLink
+          to="/submissions"
+          className={({ isActive }) => (isActive ? "active" : "")}
+        >
+          Submissions
+        </NavLink>
+        <NavLink
+          to="/monitor"
+          className={({ isActive }) => (isActive ? "active" : "")}
+        >
+          Monitor
         </NavLink>
       </nav>
       {children}
@@ -33,6 +47,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/" element={<App />} />
           <Route path="/problems" element={<ProblemsPage />} />
           <Route path="/problem/:uuid" element={<ProblemPage />} />
+          <Route path="/submissions" element={<SubmissionsPage />} />
+          <Route path="/monitor" element={<MonitorPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>

@@ -1,4 +1,5 @@
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Run
 
@@ -10,6 +11,14 @@ class RunRepository:
         db.add(run)
         db.flush()
         return run
+
+    def list_all(self, db: Session) -> list[Run]:
+        stmt = (
+            select(Run)
+            .options(selectinload(Run.submission))
+            .order_by(Run.created_at.desc())
+        )
+        return list(db.scalars(stmt).all())
 
     def update(
         self,

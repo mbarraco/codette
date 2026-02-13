@@ -33,7 +33,7 @@ services:
       target: api
     env_file:
       - ../.env
-    command: ["sh", "/app/scripts/start-api-dev.sh"]
+    command: ["sh", "/app/scripts/dev/start-api-dev.sh"]
     volumes:
       - ../backend:/app
     ports:
@@ -79,7 +79,7 @@ services:
       PYTHONBREAKPOINT: ${PYTHONBREAKPOINT:-IPython.core.debugger.set_trace}
       WAIT_RETRIES: "40"
       WAIT_SLEEP_SECONDS: "1"
-    command: ["sh", "/app/scripts/run-tests.sh"]
+    command: ["sh", "/app/scripts/dev/run-tests.sh"]
     volumes:
       - ../backend:/app
     depends_on:
@@ -104,13 +104,13 @@ services:
 
   runner:
     build:
-      context: ../images/runner
+      context: ../jobs/runner
     profiles:
       - tools
 
   grader:
     build:
-      context: ../images/grader
+      context: ../jobs/grader
     profiles:
       - tools
 

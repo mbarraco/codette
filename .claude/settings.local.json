@@ -16,7 +16,8 @@
       "Bash(VIRTUAL_ENV=\"\" uv add:*)",
       "Bash(uv run alembic revision:*)",
       "Bash(make:*)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(git -C /Users/mbarraco/code/codette mv images jobs)"
     ]
   }
 }

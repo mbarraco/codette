@@ -1,3 +1,6 @@
+import uuid
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Submission, SubmissionQueue
@@ -11,10 +14,19 @@ class SubmissionRepository:
         db.flush()
         return submission
 
+    def get_by_uuid(self, db: Session, submission_uuid: uuid.UUID) -> Submission | None:
+        return (
+            db.query(Submission)
+            .filter(Submission.uuid == submission_uuid, Submission.deleted_at.is_(None))
+            .options(selectinload(Submission.problem))
+            .one_or_none()
+        )
+
     def list_all(self, db: Session) -> list[Submission]:
-        """Return all submissions with related entities, newest first."""
+        """Return all non-deleted submissions with related entities, newest first."""
         return list(
             db.query(Submission)
+            .filter(Submission.deleted_at.is_(None))
             .options(
                 selectinload(Submission.problem),
                 selectinload(Submission.runs),
@@ -26,3 +38,7 @@ class SubmissionRepository:
             .order_by(Submission.created_at.desc())
             .all()
         )
+
+    def soft_delete(self, db: Session, submission: Submission) -> None:
+        submission.deleted_at = func.now()  # type: ignore[assignment]
+        db.flush()

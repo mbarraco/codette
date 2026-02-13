@@ -3,7 +3,7 @@ TEST_DB_NAME ?= codette_test
 
 .PHONY: setup up down build logs ps db-shell \
         up-api up-web up-worker \
-        migrate restart clean setup-tests \
+        migrate seed restart clean setup-tests \
         test test-build test-shell \
         e2e e2e-build
 
@@ -55,6 +55,9 @@ db-shell: ## Open a psql shell
 
 migrate: ## Run Alembic migrations inside the API container
 	$(COMPOSE) exec api alembic upgrade head
+
+seed: migrate ## Seed development data inside the API container (idempotent)
+	$(COMPOSE) exec api sh -lc 'PYTHONPATH=/app python /app/scripts/dev/seed_dev_data.py'
 
 ## ---------- Tests ----------
 

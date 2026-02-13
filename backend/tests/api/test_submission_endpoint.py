@@ -1,5 +1,7 @@
 """API-layer tests for /api/v1/submissions endpoints."""
 
+import uuid
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -123,3 +125,56 @@ def test_api_v1_submissions_get_returns_empty_list(client: TestClient) -> None:
     response = client.get("/api/v1/submissions/")
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_api_v1_submissions_uuid_get_returns_submission(
+    client: TestClient, submission: Submission
+) -> None:
+    response = client.get(f"/api/v1/submissions/{submission.uuid}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["uuid"] == str(submission.uuid)
+    assert body["artifact_uri"] == submission.artifact_uri
+    assert "id" not in body
+
+
+def test_api_v1_submissions_uuid_get_returns_404_when_not_found(
+    client: TestClient,
+) -> None:
+    response = client.get(f"/api/v1/submissions/{uuid.uuid4()}")
+    assert response.status_code == 404
+
+
+def test_api_v1_submissions_uuid_delete_returns_204(
+    client: TestClient, submission: Submission
+) -> None:
+    response = client.delete(f"/api/v1/submissions/{submission.uuid}")
+    assert response.status_code == 204
+
+    # Verify it's no longer accessible
+    response = client.get(f"/api/v1/submissions/{submission.uuid}")
+    assert response.status_code == 404
+
+
+def test_api_v1_submissions_uuid_delete_returns_404_when_not_found(
+    client: TestClient,
+) -> None:
+    response = client.delete(f"/api/v1/submissions/{uuid.uuid4()}")
+    assert response.status_code == 404
+
+
+def test_api_v1_submissions_get_excludes_deleted(
+    client: TestClient, db: Session, problem: Problem
+) -> None:
+    sub = Submission(artifact_uri="gs://bucket/solution.py", problem_id=problem.id)
+    db.add(sub)
+    db.flush()
+
+    # Delete it
+    client.delete(f"/api/v1/submissions/{sub.uuid}")
+
+    # List should not include the deleted submission
+    response = client.get("/api/v1/submissions/")
+    assert response.status_code == 200
+    uuids = [s["uuid"] for s in response.json()]
+    assert str(sub.uuid) not in uuids

@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     api_port: int = 8000
     log_level: str = "INFO"
 
+    gcp_project: str | None = None
+    gcp_location: str = "us-central1"
+    runner_job_name: str = "codette-runner"
+    grader_job_name: str = "codette-grader"
+
 
 class TestSettings(BaseSettings):
     model_config = SettingsConfigDict(

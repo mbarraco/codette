@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.storage import StorageAdapter
 from app.core.settings import TestSettings
-from app.models import Base, Problem
+from app.models import Base, Problem, Submission
 
 RESOURCES_DIR = Path(__file__).resolve().parent / "resources"
 
@@ -46,6 +46,17 @@ def problem(db: Session) -> Problem:
     db.add(p)
     db.flush()
     return p
+
+
+@pytest.fixture()
+def submission(db: Session, problem: Problem) -> Submission:
+    s = Submission(
+        artifact_uri="gs://test-bucket/submissions/test/solution.py",
+        problem_id=problem.id,
+    )
+    db.add(s)
+    db.flush()
+    return s
 
 
 @pytest.fixture()
