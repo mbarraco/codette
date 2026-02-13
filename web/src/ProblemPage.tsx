@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import styles from "./ProblemPage.module.css";
 
 type ProblemData = {
   uuid: string;
@@ -86,28 +87,28 @@ function ProblemPage() {
     }
   };
 
-  if (loading) return <p>Loading problem...</p>;
-  if (fetchError) return <p>Error: {fetchError}</p>;
-  if (!problem) return <p>Problem not found.</p>;
+  if (loading) return <div className="page"><p>Loading problem...</p></div>;
+  if (fetchError) return <div className="page"><p className="error-text">Error: {fetchError}</p></div>;
+  if (!problem) return <div className="page"><p>Problem not found.</p></div>;
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <div className="page">
       <h1>{problem.title}</h1>
 
-      <section>
+      <section className={styles.section}>
         <h2>Statement</h2>
         <p>{problem.statement}</p>
       </section>
 
       {problem.hints ? (
-        <section>
+        <section className={styles.section}>
           <h2>Hints</h2>
           <p>{problem.hints}</p>
         </section>
       ) : null}
 
       {problem.examples ? (
-        <section>
+        <section className={styles.section}>
           <h2>Examples</h2>
           <pre>{problem.examples}</pre>
         </section>
@@ -116,39 +117,41 @@ function ProblemPage() {
       <hr />
 
       <h2>Submit Solution</h2>
-      <form onSubmit={submit} style={{ display: "grid", gap: "0.75rem", maxWidth: "720px" }}>
+      <form onSubmit={submit} className={styles.codeForm}>
         <label>
           Code
           <textarea
             value={code}
             onChange={(event) => setCode(event.target.value)}
             rows={10}
-            style={{ width: "100%", fontFamily: "monospace" }}
+            className={styles.codeArea}
           />
         </label>
 
-        <button type="submit" disabled={submitState === "submitting"}>
+        <button type="submit" className="btn-primary" disabled={submitState === "submitting"}>
           {submitState === "submitting" ? "Submitting..." : "Submit"}
         </button>
       </form>
 
-      <p>
-        Submission state: <strong>{submitState}</strong>
-      </p>
-      {statusCode !== null ? <p>HTTP status: {statusCode}</p> : null}
+      <div className={styles.statusLine}>
+        <p>
+          Submission state: <strong>{submitState}</strong>
+        </p>
+        {statusCode !== null ? <p>HTTP status: {statusCode}</p> : null}
+      </div>
 
       {submission ? (
-        <>
+        <div className={styles.resultBlock}>
           <h3>Success JSON</h3>
           <pre>{JSON.stringify(submission, null, 2)}</pre>
-        </>
+        </div>
       ) : null}
 
       {submitError ? (
-        <>
+        <div className={styles.resultBlock}>
           <h3>Error JSON</h3>
           <pre>{JSON.stringify(submitError, null, 2)}</pre>
-        </>
+        </div>
       ) : null}
     </div>
   );

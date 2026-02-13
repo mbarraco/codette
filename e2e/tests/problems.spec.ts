@@ -27,12 +27,18 @@ test.describe("Problem CRUD", () => {
     );
     await page.getByLabel("Hints").fill("Think about the + operator.");
     await page.getByLabel("Examples").fill("add(1, 2) == 3");
-    await page.getByLabel("Test Cases").fill(
-      JSON.stringify([
-        { input: [1, 2], output: 3 },
-        { input: [0, 0], output: 0 },
-      ]),
-    );
+    // Add two test cases via the form rows
+    await page.getByRole("button", { name: "Add Test Case" }).click();
+    await page.getByRole("button", { name: "Add Test Case" }).click();
+
+    const inputs = page.getByLabel("Input");
+    const outputs = page.getByLabel("Output");
+
+    await inputs.nth(0).fill("[1, 2]");
+    await outputs.nth(0).fill("3");
+
+    await inputs.nth(1).fill("[0, 0]");
+    await outputs.nth(1).fill("0");
     await page.getByRole("button", { name: "Save" }).click();
 
     // 3. Verify problem appears in the table

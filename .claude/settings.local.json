@@ -9,7 +9,14 @@
       "Bash(.venv/bin/python -m pytest tests/services/ -v)",
       "Bash(ls:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(VIRTUAL_ENV=\"\" uv add:*)",
+      "Bash(uv run alembic revision:*)",
+      "Bash(make:*)",
+      "Bash(docker run:*)"
     ]
   }
 }

@@ -1,0 +1,33 @@
+.hero {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.hero h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  color: var(--color-gray-800);
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: var(--color-gray-100);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.status strong {
+  color: var(--color-blue);
+}
+
+.hint {
+  margin-top: 2rem;
+  color: var(--color-gray-800);
+  font-size: 0.875rem;
+}

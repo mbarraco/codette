@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import styles from "./App.module.css";
 
 function App() {
   const [health, setHealth] = useState<string | null>(null);
@@ -11,17 +12,15 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <div className={`page ${styles.hero}`}>
       <h1>Codette</h1>
-      <p>Mini-LeetCode Platform</p>
-      <p>
+      <p className={styles.subtitle}>Mini-LeetCode Platform</p>
+      <p className={styles.status}>
         API Health: <strong>{health ?? "loading..."}</strong>
       </p>
-      <p>
-        <a href="/problems">Manage Problems</a>
-      </p>
-      <p>
-        Navigate to <code>/problem/:uuid</code> to view a problem and submit a solution.
+      <p className={styles.hint}>
+        Navigate to <code>/problem/:uuid</code> to view a problem and submit a
+        solution.
       </p>
     </div>
   );

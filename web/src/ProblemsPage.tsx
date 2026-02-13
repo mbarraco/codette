@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
+import styles from "./ProblemsPage.module.css";
 
 type TestCase = {
   input: unknown[];
@@ -15,20 +16,27 @@ type ProblemData = {
   created_at: string;
 };
 
+type TestCaseRow = {
+  input: string;
+  output: string;
+};
+
 type FormData = {
   title: string;
   statement: string;
   hints: string;
   examples: string;
-  test_cases_json: string;
+  testCases: TestCaseRow[];
 };
+
+const emptyRow: TestCaseRow = { input: "", output: "" };
 
 const emptyForm: FormData = {
   title: "",
   statement: "",
   hints: "",
   examples: "",
-  test_cases_json: "",
+  testCases: [],
 };
 
 function ProblemsPage() {
@@ -39,7 +47,7 @@ function ProblemsPage() {
   const [editingUuid, setEditingUuid] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   const fetchProblems = () => {
     setLoading(true);
@@ -57,7 +65,7 @@ function ProblemsPage() {
   const openCreate = () => {
     setEditingUuid(null);
     setForm(emptyForm);
-    setJsonError(null);
+    setParseError(null);
     setShowModal(true);
   };
 
@@ -68,9 +76,14 @@ function ProblemsPage() {
       statement: p.statement,
       hints: p.hints ?? "",
       examples: p.examples ?? "",
-      test_cases_json: p.test_cases ? JSON.stringify(p.test_cases, null, 2) : "",
+      testCases: p.test_cases
+        ? p.test_cases.map((tc) => ({
+            input: JSON.stringify(tc.input),
+            output: JSON.stringify(tc.output),
+          }))
+        : [],
     });
-    setJsonError(null);
+    setParseError(null);
     setShowModal(true);
   };
 
@@ -78,19 +91,54 @@ function ProblemsPage() {
     setShowModal(false);
     setEditingUuid(null);
     setForm(emptyForm);
-    setJsonError(null);
+    setParseError(null);
+  };
+
+  const addTestCase = () => {
+    setForm({ ...form, testCases: [...form.testCases, { ...emptyRow }] });
+  };
+
+  const removeTestCase = (index: number) => {
+    setForm({
+      ...form,
+      testCases: form.testCases.filter((_, i) => i !== index),
+    });
+  };
+
+  const updateTestCase = (
+    index: number,
+    field: keyof TestCaseRow,
+    value: string,
+  ) => {
+    const updated = form.testCases.map((tc, i) =>
+      i === index ? { ...tc, [field]: value } : tc,
+    );
+    setForm({ ...form, testCases: updated });
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setJsonError(null);
+    setParseError(null);
 
     let testCases: TestCase[] | null = null;
-    if (form.test_cases_json.trim()) {
+    if (form.testCases.length > 0) {
       try {
-        testCases = JSON.parse(form.test_cases_json);
-      } catch {
-        setJsonError("Invalid JSON for test cases.");
+        testCases = form.testCases.map((row, i) => {
+          const input = JSON.parse(row.input);
+          if (!Array.isArray(input)) {
+            throw new Error(
+              `Test case ${i + 1}: Input must be a JSON array, e.g. [1, 2]`,
+            );
+          }
+          const output = JSON.parse(row.output);
+          return { input, output };
+        });
+      } catch (err) {
+        setParseError(
+          err instanceof SyntaxError
+            ? "Invalid JSON in test case fields."
+            : String((err as Error).message),
+        );
         return;
       }
     }
@@ -134,49 +182,43 @@ function ProblemsPage() {
     s.length > max ? s.slice(0, max) + "..." : s;
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
-      <h1>Problems</h1>
-      <button onClick={openCreate} style={{ marginBottom: "1rem" }}>
-        Create Problem
-      </button>
+    <div className="page">
+      <div className={styles.header}>
+        <h1>Problems</h1>
+        <button className="btn-primary" onClick={openCreate}>
+          Create Problem
+        </button>
+      </div>
 
       {loading ? (
         <p>Loading...</p>
       ) : problems.length === 0 ? (
         <p>No problems yet.</p>
       ) : (
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            textAlign: "left",
-          }}
-        >
+        <table>
           <thead>
             <tr>
-              <th style={thStyle}>Title</th>
-              <th style={thStyle}>Statement</th>
-              <th style={thStyle}>Tests</th>
-              <th style={thStyle}>Created</th>
-              <th style={thStyle}>Actions</th>
+              <th>Title</th>
+              <th>Statement</th>
+              <th>Tests</th>
+              <th>Created</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {problems.map((p) => (
               <tr key={p.uuid}>
-                <td style={tdStyle}>{p.title}</td>
-                <td style={tdStyle}>{truncate(p.statement, 80)}</td>
-                <td style={tdStyle}>
-                  {p.test_cases ? p.test_cases.length : 0}
-                </td>
-                <td style={tdStyle}>
-                  {new Date(p.created_at).toLocaleDateString()}
-                </td>
-                <td style={tdStyle}>
-                  <button onClick={() => openEdit(p)} style={{ marginRight: "0.5rem" }}>
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(p)}>Delete</button>
+                <td>{p.title}</td>
+                <td>{truncate(p.statement, 80)}</td>
+                <td>{p.test_cases ? p.test_cases.length : 0}</td>
+                <td>{new Date(p.created_at).toLocaleDateString()}</td>
+                <td>
+                  <div className={styles.cellActions}>
+                    <button onClick={() => openEdit(p)}>Edit</button>
+                    <button className="btn-danger" onClick={() => handleDelete(p)}>
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -185,10 +227,10 @@ function ProblemsPage() {
       )}
 
       {showModal ? (
-        <div style={overlayStyle}>
-          <div style={modalStyle}>
+        <div className="overlay">
+          <div className="modal">
             <h2>{editingUuid ? "Edit Problem" : "Create Problem"}</h2>
-            <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.75rem" }}>
+            <form onSubmit={handleSubmit} className={styles.form}>
               <label>
                 Title *
                 <input
@@ -196,17 +238,17 @@ function ProblemsPage() {
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   required
-                  style={{ width: "100%", display: "block" }}
                 />
               </label>
               <label>
                 Statement *
                 <textarea
                   value={form.statement}
-                  onChange={(e) => setForm({ ...form, statement: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, statement: e.target.value })
+                  }
                   rows={3}
                   required
-                  style={{ width: "100%", display: "block" }}
                 />
               </label>
               <label>
@@ -215,33 +257,60 @@ function ProblemsPage() {
                   value={form.hints}
                   onChange={(e) => setForm({ ...form, hints: e.target.value })}
                   rows={2}
-                  style={{ width: "100%", display: "block" }}
                 />
               </label>
               <label>
                 Examples
                 <textarea
                   value={form.examples}
-                  onChange={(e) => setForm({ ...form, examples: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, examples: e.target.value })
+                  }
                   rows={2}
-                  style={{ width: "100%", display: "block" }}
                 />
               </label>
-              <label>
-                Test Cases (JSON)
-                <textarea
-                  value={form.test_cases_json}
-                  onChange={(e) => setForm({ ...form, test_cases_json: e.target.value })}
-                  rows={6}
-                  placeholder={'[\n  {"input": [1, 2], "output": 3},\n  {"input": [0, 5], "output": 0}\n]'}
-                  style={{ width: "100%", display: "block", fontFamily: "monospace" }}
-                />
-              </label>
-              {jsonError ? (
-                <p style={{ color: "red", margin: 0 }}>{jsonError}</p>
-              ) : null}
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="submit" disabled={saving}>
+              <fieldset>
+                <legend>Test Cases</legend>
+                {form.testCases.map((tc, i) => (
+                  <div key={i} className={styles.testCaseRow}>
+                    <label>
+                      Input
+                      <input
+                        type="text"
+                        value={tc.input}
+                        onChange={(e) =>
+                          updateTestCase(i, "input", e.target.value)
+                        }
+                        placeholder="[1, 2]"
+                      />
+                    </label>
+                    <label>
+                      Output
+                      <input
+                        type="text"
+                        value={tc.output}
+                        onChange={(e) =>
+                          updateTestCase(i, "output", e.target.value)
+                        }
+                        placeholder="3"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeTestCase(i)}
+                      aria-label={`Remove test case ${i + 1}`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button type="button" onClick={addTestCase}>
+                  Add Test Case
+                </button>
+              </fieldset>
+              {parseError ? <p className="error-text">{parseError}</p> : null}
+              <div className={styles.formButtons}>
+                <button type="submit" className="btn-primary" disabled={saving}>
                   {saving ? "Saving..." : "Save"}
                 </button>
                 <button type="button" onClick={closeModal}>
@@ -255,32 +324,5 @@ function ProblemsPage() {
     </div>
   );
 }
-
-const thStyle: React.CSSProperties = {
-  borderBottom: "2px solid #ccc",
-  padding: "0.5rem",
-};
-
-const tdStyle: React.CSSProperties = {
-  borderBottom: "1px solid #eee",
-  padding: "0.5rem",
-};
-
-const overlayStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.4)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const modalStyle: React.CSSProperties = {
-  background: "white",
-  padding: "2rem",
-  borderRadius: "8px",
-  minWidth: "400px",
-  maxWidth: "600px",
-};
 
 export default ProblemsPage;

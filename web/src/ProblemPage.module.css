@@ -1,0 +1,32 @@
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.codeForm {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 720px;
+}
+
+.codeArea {
+  font-family: "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+  background: var(--color-gray-50);
+}
+
+.statusLine {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.statusLine strong {
+  text-transform: capitalize;
+}
+
+.resultBlock {
+  margin-top: 1rem;
+}
+
+.resultBlock h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}

@@ -1,5 +1,11 @@
+import { existsSync } from "node:fs";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+
+const defaultProxyTarget = existsSync("/.dockerenv")
+  ? "http://api:8000"
+  : "http://localhost:8000";
 
 export default defineConfig({
   plugins: [react()],
@@ -9,7 +15,7 @@ export default defineConfig({
     allowedHosts: ["web"],
     proxy: {
       "/api": {
-        target: "http://api:8000",
+        target: process.env.VITE_PROXY_TARGET ?? defaultProxyTarget,
         changeOrigin: true,
         // Keep versioned API routes intact, but map legacy /api/health to /health.
         rewrite: (path) =>
