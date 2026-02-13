@@ -1,29 +1,40 @@
 # Backend Architecture Rules
 
 ## Layer Layout
-- Use this backend layout under `backend/app/`: `api/`, `services/`, `adapters/`, `worker/`, `models/`, `core/`.
-- Keep dependency flow inward: `api -> handlers -> services -> adapters -> models`.
-- Keep worker orchestration in `backend/app/worker/` and inject dependencies through constructors.
+- The backend lives under `backend/app/` with these top-level packages: `api/`, `services/`, `adapters/`, `worker/`, `models/`, `core/`.
+- Every import must follow this dependency direction — never import against the arrow:
 
-## API and Handler Boundaries
-- Route modules in `backend/app/api/routes/` must stay thin and HTTP-only.
-- Handler modules in `backend/app/api/handlers/` orchestrate use cases and service calls.
-- Handlers may call multiple services or adapters when a use case requires it.
+```
+api/routes -> api/handlers -> services -> adapters -> models
+                                                  \-> core
+```
 
-## Service Rules
-- Services are framework-agnostic and contain business logic.
-- Service functions must accept explicit dependencies (`db`, repository instances, external adapters).
-- Services must not import FastAPI types.
+## Dependency Direction
+- Route modules must never import from `services/`, `adapters/`, or `models/` (except schema types).
+- Handler modules must never import from `api/routes/`.
+- Service modules must never import from `api/` or `worker/`.
+- Adapter modules must never import from `services/` or `api/`.
 
-## Adapter Rules
-- Put all SQLAlchemy query logic in `backend/app/adapters/repository/` modules.
-- Use one repository file per model or aggregate.
-- Keep external systems (storage, job runners, third-party APIs) in dedicated adapter files.
-- Prefer concrete adapters first.
-- Introduce protocols or interfaces only when multiple implementations are required.
+### Correct — handler imports service and adapter
+```python
+# backend/app/api/v1/handlers/submission.py
+from app.adapters.repository.submission import SubmissionRepository
+from app.adapters.storage import StorageAdapter
+from app.services.submission import create_submission
+```
 
-## Settings and Environments
-- Define settings in `backend/app/core/settings.py` using `pydantic-settings`.
-- Use separate settings classes for app and tests.
-- Read settings through lazy `get_settings()` access.
-- Fail fast on missing required settings by avoiding silent defaults for required fields.
+### Wrong — route imports repository directly
+```python
+# backend/app/api/v1/routes/submission.py
+from app.adapters.repository.submission import SubmissionRepository  # NEVER
+```
+
+### Wrong — service imports FastAPI types
+```python
+# backend/app/services/submission.py
+from fastapi import HTTPException  # NEVER
+```
+
+## Worker Rules
+- Keep worker orchestration in `backend/app/worker/`.
+- Always inject dependencies through constructors — never import adapters at module level in workers.
