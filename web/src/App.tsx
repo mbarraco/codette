@@ -15,7 +15,10 @@ function App() {
       <h1>Codette</h1>
       <p>Mini-LeetCode Platform</p>
       <p>
-        API Health: <strong>{health ?? "loa3463ding..."}</strong>
+        API Health: <strong>{health ?? "loading..."}</strong>
+      </p>
+      <p>
+        Navigate to <code>/problem/:uuid</code> to view a problem and submit a solution.
       </p>
     </div>
   );

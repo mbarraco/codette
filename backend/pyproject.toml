@@ -48,3 +48,8 @@ ignore = []
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+]
