@@ -1,8 +1,9 @@
 COMPOSE := docker compose --env-file .env -f infra/docker-compose.yml
+TEST_DB_NAME ?= codette_test
 
 .PHONY: setup up down build logs ps db-shell \
         up-api up-web up-worker \
-        migrate restart clean \
+        migrate restart clean setup-tests \
         test test-build test-shell
 
 ## ---------- First-time setup ----------
@@ -56,10 +57,15 @@ migrate: ## Run Alembic migrations inside the API container
 
 ## ---------- Tests ----------
 
-test:
+setup-tests: .env ## Ensure test dependencies are up and test database exists
+	$(COMPOSE) up -d db gcs
+	$(COMPOSE) exec -T db sh -lc 'until pg_isready -U "$${POSTGRES_USER:-codette}" -d "$${POSTGRES_DB:-codette}" >/dev/null 2>&1; do sleep 1; done'
+	$(COMPOSE) exec -T db sh -lc 'if ! psql -U "$${POSTGRES_USER:-codette}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''$(TEST_DB_NAME)'\''" | grep -q 1; then psql -v ON_ERROR_STOP=1 -U "$${POSTGRES_USER:-codette}" -d postgres -c "CREATE DATABASE $(TEST_DB_NAME)"; fi'
+
+test: setup-tests
 	$(COMPOSE) --profile test run --rm test
 
-test-build: ## Rebuild test image, then run tests
+test-build: setup-tests ## Rebuild test image, then run tests
 	$(COMPOSE) --profile test run --rm --build test
 
 test-shell: ## Open a bash shell in the test container

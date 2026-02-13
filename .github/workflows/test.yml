@@ -16,6 +16,25 @@ jobs:
       - name: Copy env file
         run: cp .env.example .env
 
+      - name: Restore service images cache
+        id: service-images-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/codette-service-images.tar
+          key: ${{ runner.os }}-codette-service-images-${{ hashFiles('infra/docker-compose.yml') }}
+
+      - name: Load cached service images
+        if: steps.service-images-cache.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/codette-service-images.tar
+
+      - name: Pull service images
+        if: steps.service-images-cache.outputs.cache-hit != 'true'
+        run: docker compose --env-file .env -f infra/docker-compose.yml --profile test pull db gcs
+
+      - name: Save service images to cache
+        if: steps.service-images-cache.outputs.cache-hit != 'true'
+        run: docker save postgres:16 fsouza/fake-gcs-server:latest -o /tmp/codette-service-images.tar
+
       - name: Restore test image cache
         id: test-image-cache
         uses: actions/cache@v4
@@ -36,4 +55,4 @@ jobs:
         run: docker save codette-test:latest -o /tmp/codette-test-image.tar
 
       - name: Run tests
-        run: docker compose --env-file .env -f infra/docker-compose.yml --profile test run --rm test
+        run: make test
