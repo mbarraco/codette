@@ -75,6 +75,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://codette:codette@db:5432/codette_test
       STORAGE_BUCKET: codette-test
+      STORAGE_EMULATOR_HOST: http://gcs:4443
       PYTHONBREAKPOINT: ${PYTHONBREAKPOINT:-IPython.core.debugger.set_trace}
       WAIT_RETRIES: "40"
       WAIT_SLEEP_SECONDS: "1"
