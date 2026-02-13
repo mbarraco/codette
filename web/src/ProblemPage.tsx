@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 
 type ProblemData = {
   uuid: string;
+  title: string;
   statement: string;
   hints: string | null;
   examples: string | null;
@@ -91,7 +92,7 @@ function ProblemPage() {
 
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
-      <h1>Problem</h1>
+      <h1>{problem.title}</h1>
 
       <section>
         <h2>Statement</h2>

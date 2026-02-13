@@ -18,6 +18,9 @@ function App() {
         API Health: <strong>{health ?? "loading..."}</strong>
       </p>
       <p>
+        <a href="/problems">Manage Problems</a>
+      </p>
+      <p>
         Navigate to <code>/problem/:uuid</code> to view a problem and submit a solution.
       </p>
     </div>

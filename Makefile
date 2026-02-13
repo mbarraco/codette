@@ -4,7 +4,8 @@ TEST_DB_NAME ?= codette_test
 .PHONY: setup up down build logs ps db-shell \
         up-api up-web up-worker \
         migrate restart clean setup-tests \
-        test test-build test-shell
+        test test-build test-shell \
+        e2e e2e-build
 
 ## ---------- First-time setup ----------
 
@@ -70,6 +71,16 @@ test-build: setup-tests ## Rebuild test image, then run tests
 
 test-shell: ## Open a bash shell in the test container
 	$(COMPOSE) --profile test run --rm --entrypoint /bin/bash test
+
+## ---------- E2E tests ----------
+
+e2e: .env ## Run Playwright end-to-end tests in Docker
+	$(COMPOSE) up -d web
+	$(COMPOSE) --profile e2e run --rm e2e
+
+e2e-build: .env ## Rebuild e2e image, then run Playwright tests
+	$(COMPOSE) up -d web
+	$(COMPOSE) --profile e2e run --rm --build e2e
 
 ## ---------- Tool images ----------
 

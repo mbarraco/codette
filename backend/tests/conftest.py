@@ -17,6 +17,7 @@ test_settings = TestSettings()
 @pytest.fixture(scope="session")
 def engine():
     engine = create_engine(test_settings.database_url)
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
@@ -37,6 +38,7 @@ def db(engine) -> Session:
 @pytest.fixture()
 def problem(db: Session) -> Problem:
     p = Problem(
+        title="Two Sum",
         statement="Return the sum of two integers.",
         hints="Think about the + operator.",
         examples="add(1, 2) == 3",
