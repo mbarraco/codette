@@ -12,14 +12,14 @@ def test_api_v1_submissions_post_returns_201_with_submission(
 ) -> None:
     response = client.post(
         "/api/v1/submissions/",
-        json={"problem_id": problem.id, "code": "def add(a, b): return a + b"},
+        json={"problem_uuid": str(problem.uuid), "code": "def add(a, b): return a + b"},
     )
 
     assert response.status_code == 201
     body = response.json()
-    assert body["problem_id"] == problem.id
-    assert body["id"] is not None
+    assert body["problem_uuid"] == str(problem.uuid)
     assert body["uuid"] is not None
+    assert "id" not in body
     assert body["artifact_uri"].startswith("gs://")
     assert "solution.py" in body["artifact_uri"]
     assert body["created_at"] is not None
@@ -31,7 +31,7 @@ def test_api_v1_submissions_post_uploads_artifact_to_storage(
     code = "def solve(): return 42\n"
     response = client.post(
         "/api/v1/submissions/",
-        json={"problem_id": problem.id, "code": code},
+        json={"problem_uuid": str(problem.uuid), "code": code},
     )
 
     artifact_uri = response.json()["artifact_uri"]
@@ -40,7 +40,8 @@ def test_api_v1_submissions_post_uploads_artifact_to_storage(
     blob = storage._bucket.blob(blob_path)
     assert blob.exists()
     assert blob.download_as_text() == code
-    row = db.get(Submission, response.json()["id"])
+    sub_uuid = response.json()["uuid"]
+    row = db.query(Submission).filter(Submission.uuid == sub_uuid).one()
     assert row is not None
     assert row.problem_id == problem.id
 
@@ -50,12 +51,12 @@ def test_api_v1_submissions_post_returns_422_when_code_missing(
 ) -> None:
     response = client.post(
         "/api/v1/submissions/",
-        json={"problem_id": problem.id},
+        json={"problem_uuid": str(problem.uuid)},
     )
     assert response.status_code == 422
 
 
-def test_api_v1_submissions_post_returns_422_when_problem_id_missing(
+def test_api_v1_submissions_post_returns_422_when_problem_uuid_missing(
     client: TestClient,
 ) -> None:
     response = client.post(
@@ -63,6 +64,18 @@ def test_api_v1_submissions_post_returns_422_when_problem_id_missing(
         json={"code": "x = 1"},
     )
     assert response.status_code == 422
+
+
+def test_api_v1_submissions_post_returns_404_when_problem_not_found(
+    client: TestClient,
+) -> None:
+    import uuid
+
+    response = client.post(
+        "/api/v1/submissions/",
+        json={"problem_uuid": str(uuid.uuid4()), "code": "x = 1"},
+    )
+    assert response.status_code == 404
 
 
 def test_api_v1_submissions_post_returns_422_when_body_empty(
@@ -95,7 +108,9 @@ def test_api_v1_submissions_get_returns_nested_data(
     body = response.json()
     assert len(body) >= 1
 
-    detail = next(s for s in body if s["id"] == sub.id)
+    detail = next(s for s in body if s["uuid"] == str(sub.uuid))
+    assert "id" not in detail
+    assert detail["problem_uuid"] == str(problem.uuid)
     assert len(detail["runs"]) == 1
     assert detail["runs"][0]["status"] == "completed"
     assert len(detail["evaluations"]) == 1

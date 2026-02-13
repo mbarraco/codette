@@ -16,44 +16,79 @@ jobs:
       - name: Copy env file
         run: cp .env.example .env
 
-      - name: Restore service images cache
-        id: service-images-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/codette-service-images.tar
-          key: ${{ runner.os }}-codette-service-images-${{ hashFiles('infra/docker-compose.yml') }}
+      # ── Build the test image with layer caching ──
+      #
+      # This replaces the old docker-save/load tarball approach.
+      #
+      # How Docker builds work:
+      #   A Docker image is a stack of layers. Each Dockerfile instruction
+      #   (RUN, COPY, etc.) produces one layer. When nothing changes,
+      #   Docker reuses the cached layer instead of re-executing the
+      #   instruction. That's why Dockerfiles copy dependency files first,
+      #   then run install, then copy the rest of the code — so the
+      #   expensive "pip install" layer is cached until dependencies change.
+      #
+      # The problem with the old approach:
+      #   `docker save` serialises the ENTIRE image (all layers) into one
+      #   tar file, and `docker load` restores the whole thing. It's
+      #   all-or-nothing: if ANY layer changes, you save/load everything
+      #   from scratch. It's also slow — hundreds of MB of I/O every run.
+      #
+      # What BuildKit + GHA cache does differently:
+      #   BuildKit (Docker's modern build engine) can cache individual
+      #   layers externally. The `cache-from: type=gha` tells it to pull
+      #   cached layers from GitHub Actions' built-in cache. The
+      #   `cache-to: type=gha,mode=max` pushes all layers back after
+      #   building.
+      #
+      #   So when you change only your code (but not pyproject.toml), the
+      #   expensive "pip install" layer is fetched from cache in seconds,
+      #   and only the cheap "COPY . ." layer rebuilds.
+      #
+      # `setup-buildx-action` creates a BuildKit builder instance.
+      # The default Docker builder doesn't support external cache backends.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Load cached service images
-        if: steps.service-images-cache.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/codette-service-images.tar
-
-      - name: Pull service images
-        if: steps.service-images-cache.outputs.cache-hit != 'true'
-        run: docker compose --env-file .env -f infra/docker-compose.yml --profile test pull db gcs
-
-      - name: Save service images to cache
-        if: steps.service-images-cache.outputs.cache-hit != 'true'
-        run: docker save postgres:16 fsouza/fake-gcs-server:latest -o /tmp/codette-service-images.tar
-
-      - name: Restore test image cache
-        id: test-image-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/codette-test-image.tar
-          key: ${{ runner.os }}-codette-test-image-${{ hashFiles('backend/Dockerfile', 'backend/pyproject.toml', 'backend/uv.lock') }}
-
-      - name: Load cached test image
-        if: steps.test-image-cache.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/codette-test-image.tar
-
+      # `build-push-action` builds the image using BuildKit.
+      #
+      # Key options:
+      #   context: ./backend     — the Dockerfile's build context
+      #   target: test           — build only up to the "test" stage
+      #   load: true             — load the result into the local Docker
+      #                            daemon so `docker compose run` finds it
+      #   tags: codette-test     — must match what compose expects
+      #                            (project name "codette" + service "test")
+      #   cache-from: type=gha   — read cached layers from GHA cache
+      #   cache-to: type=gha,mode=max — write ALL layers back to cache
+      #                            (mode=max caches intermediate stages too,
+      #                            not just the final image)
       - name: Build test image
-        if: steps.test-image-cache.outputs.cache-hit != 'true'
-        run: docker compose --env-file .env -f infra/docker-compose.yml --profile test build test
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: test
+          load: true
+          tags: codette-test:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Save test image to cache
-        if: steps.test-image-cache.outputs.cache-hit != 'true'
-        run: docker save codette-test:latest -o /tmp/codette-test-image.tar
-
+      # ── Run tests ──
+      #
+      # Why no service image caching?
+      #   `make test` calls `setup-tests` which runs
+      #   `docker compose up -d db gcs` — this pulls postgres:16 and
+      #   fake-gcs-server if they're not present. These are small, popular
+      #   images that Docker Hub serves fast. The old tar-based caching
+      #   often took LONGER (save/load I/O) than just pulling them.
+      #
+      #   Industry standard: don't cache third-party service images in CI.
+      #   Pin them to a major version in your compose file (you already do)
+      #   and let Docker pull them. It's simpler and always up-to-date.
+      #
+      # The test image we built above is already loaded in the local
+      # daemon as `codette-test:latest`, so `docker compose run test`
+      # finds it and skips building.
       - name: Run tests
         run: make test
 

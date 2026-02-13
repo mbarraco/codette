@@ -21,22 +21,37 @@ router.include_router(submission_router, prefix="/submissions", tags=["submissio
 - Define request and response models with Pydantic v2.
 - Always add `model_config = ConfigDict(from_attributes=True)` on response schemas that serialize ORM models.
 - Keep schema modules focused on data contracts only — never put logic in schemas.
+- Never expose internal autoincrement `id` fields in schemas — use `uuid` as the external identifier.
+- Never accept internal integer foreign keys in request schemas — accept the related resource's `uuid` instead (e.g. `problem_uuid: UUID` not `problem_id: int`).
 
 ### Correct schema
 ```python
 # backend/app/api/v1/schemas/submission.py
 class SubmissionCreate(BaseModel):
     code: str
-    problem_id: int
+    problem_uuid: UUID
 
 class SubmissionResponse(BaseModel):
-    id: int
     uuid: UUID
     artifact_uri: str
-    problem_id: int
+    problem_uuid: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+```
+
+### Wrong — exposes internal IDs
+```python
+class SubmissionCreate(BaseModel):
+    code: str
+    problem_id: int  # NEVER — accept problem_uuid: UUID instead
+
+class SubmissionResponse(BaseModel):
+    id: int           # NEVER — internal ID must not be in API responses
+    uuid: UUID
+    artifact_uri: str
+    problem_id: int   # NEVER — use problem_uuid: UUID instead
+    created_at: datetime
 ```
 
 ## Handler Rules
@@ -46,25 +61,48 @@ class SubmissionResponse(BaseModel):
 - Always commit database transactions in handlers when a write succeeds.
 - Return domain models or domain-level errors.
 - Never import FastAPI request/response primitives into handlers.
+- Handlers are the UUID-to-integer translation layer: accept UUIDs from the API, resolve to internal integer IDs via repositories, and pass integer IDs to services.
 
 ### Correct handler
 ```python
 # backend/app/api/v1/handlers/submission.py
+import uuid
+
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.adapters.repository.problem import ProblemRepository
 from app.adapters.repository.submission import SubmissionRepository
 from app.adapters.storage import StorageAdapter
 from app.core.settings import get_settings
 from app.models import Submission
 from app.services.submission import create_submission
 
-def handle_create_submission(db: Session, problem_id: int, code: str) -> Submission:
+def handle_create_submission(
+    db: Session, problem_uuid: uuid.UUID, code: str
+) -> Submission:
+    problem_repo = ProblemRepository()
+    problem = problem_repo.get_by_uuid(db, problem_uuid)
+    if problem is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Problem {problem_uuid} not found",
+        )
+
     settings = get_settings()
     storage = StorageAdapter(settings.storage_bucket)
     repo = SubmissionRepository()
-    submission = create_submission(db, repo, storage, problem_id, code)
+    submission = create_submission(db, repo, storage, problem.id, code)
     db.commit()
+    submission.problem = problem
     return submission
+```
+
+### Wrong — handler accepts internal integer IDs from the API
+```python
+def handle_create_submission(db: Session, problem_id: int, code: str) -> Submission:
+    # NEVER — accept problem_uuid and resolve to integer ID via repository
+    ...
 ```
 
 ## Route Rules
@@ -92,7 +130,7 @@ def post_submission(
     body: SubmissionCreate,
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
-    submission = handle_create_submission(db, body.problem_id, body.code)
+    submission = handle_create_submission(db, body.problem_uuid, body.code)
     return submission
 ```
 

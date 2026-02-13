@@ -6,14 +6,13 @@ from pydantic import BaseModel, ConfigDict
 
 class SubmissionCreate(BaseModel):
     code: str
-    problem_id: int
+    problem_uuid: UUID
 
 
 class SubmissionResponse(BaseModel):
-    id: int
     uuid: UUID
     artifact_uri: str
-    problem_id: int
+    problem_uuid: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -50,10 +49,9 @@ class EvaluationSummary(BaseModel):
 
 
 class SubmissionDetail(BaseModel):
-    id: int
     uuid: UUID
     artifact_uri: str
-    problem_id: int
+    problem_uuid: UUID
     created_at: datetime
     runs: list[RunSummary]
     queue_entries: list[QueueEntrySummary]

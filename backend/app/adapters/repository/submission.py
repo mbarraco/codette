@@ -16,6 +16,7 @@ class SubmissionRepository:
         return list(
             db.query(Submission)
             .options(
+                selectinload(Submission.problem),
                 selectinload(Submission.runs),
                 selectinload(Submission.queue_entries).noload(
                     SubmissionQueue.submission

@@ -27,5 +27,5 @@ def post_submission(
     body: SubmissionCreate,
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
-    submission = handle_create_submission(db, body.problem_id, body.code)
+    submission = handle_create_submission(db, body.problem_uuid, body.code)
     return submission
