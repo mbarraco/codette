@@ -1,4 +1,4 @@
-"""API-layer tests for /submissions endpoints."""
+"""API-layer tests for /api/v1/submissions endpoints."""
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -7,9 +7,11 @@ from app.adapters.storage import StorageAdapter
 from app.models import Problem, Run, Submission, SubmissionEvaluation, SubmissionQueue
 
 
-def test_returns_201_with_submission(client: TestClient, problem: Problem) -> None:
+def test_api_v1_submissions_post_returns_201_with_submission(
+    client: TestClient, problem: Problem
+) -> None:
     response = client.post(
-        "/submissions/",
+        "/api/v1/submissions/",
         json={"problem_id": problem.id, "code": "def add(a, b): return a + b"},
     )
 
@@ -23,12 +25,12 @@ def test_returns_201_with_submission(client: TestClient, problem: Problem) -> No
     assert body["created_at"] is not None
 
 
-def test_artifact_uploaded_to_storage(
+def test_api_v1_submissions_post_uploads_artifact_to_storage(
     client: TestClient, db: Session, storage: StorageAdapter, problem: Problem
 ) -> None:
     code = "def solve(): return 42\n"
     response = client.post(
-        "/submissions/",
+        "/api/v1/submissions/",
         json={"problem_id": problem.id, "code": code},
     )
 
@@ -43,28 +45,34 @@ def test_artifact_uploaded_to_storage(
     assert row.problem_id == problem.id
 
 
-def test_missing_code_returns_422(client: TestClient, problem: Problem) -> None:
+def test_api_v1_submissions_post_returns_422_when_code_missing(
+    client: TestClient, problem: Problem
+) -> None:
     response = client.post(
-        "/submissions/",
+        "/api/v1/submissions/",
         json={"problem_id": problem.id},
     )
     assert response.status_code == 422
 
 
-def test_missing_problem_id_returns_422(client: TestClient) -> None:
+def test_api_v1_submissions_post_returns_422_when_problem_id_missing(
+    client: TestClient,
+) -> None:
     response = client.post(
-        "/submissions/",
+        "/api/v1/submissions/",
         json={"code": "x = 1"},
     )
     assert response.status_code == 422
 
 
-def test_empty_body_returns_422(client: TestClient) -> None:
-    response = client.post("/submissions/")
+def test_api_v1_submissions_post_returns_422_when_body_empty(
+    client: TestClient,
+) -> None:
+    response = client.post("/api/v1/submissions/")
     assert response.status_code == 422
 
 
-def test_list_submissions_returns_nested_data(
+def test_api_v1_submissions_get_returns_nested_data(
     client: TestClient, db: Session, problem: Problem
 ) -> None:
     sub = Submission(artifact_uri="gs://bucket/solution.py", problem_id=problem.id)
@@ -81,7 +89,7 @@ def test_list_submissions_returns_nested_data(
     db.flush()
     db.expire_all()
 
-    response = client.get("/submissions/")
+    response = client.get("/api/v1/submissions/")
 
     assert response.status_code == 200
     body = response.json()
@@ -96,7 +104,7 @@ def test_list_submissions_returns_nested_data(
     assert detail["queue_entries"][0]["attempt_count"] == 1
 
 
-def test_list_submissions_empty(client: TestClient) -> None:
-    response = client.get("/submissions/")
+def test_api_v1_submissions_get_returns_empty_list(client: TestClient) -> None:
+    response = client.get("/api/v1/submissions/")
     assert response.status_code == 200
     assert response.json() == []

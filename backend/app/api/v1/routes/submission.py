@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.adapters.db import get_db
-from app.api.handlers.submission import (
+from app.api.v1.handlers.submission import (
     handle_create_submission,
     handle_list_submissions,
 )
-from app.api.schemas.submission import (
+from app.api.v1.schemas.submission import (
     SubmissionCreate,
     SubmissionDetail,
     SubmissionResponse,

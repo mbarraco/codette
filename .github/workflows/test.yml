@@ -1,0 +1,23 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy env file
+        run: cp .env.example .env
+
+      - name: Build test image
+        run: docker compose --env-file .env -f infra/docker-compose.yml --profile test build test
+
+      - name: Run tests
+        run: docker compose --env-file .env -f infra/docker-compose.yml --profile test run --rm test

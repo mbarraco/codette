@@ -2,10 +2,11 @@
 
 ## Required Endpoint Pattern
 - Always scaffold endpoints with this structure.
-- `backend/app/api/schemas/<resource>.py`
-- `backend/app/api/handlers/<resource>.py`
-- `backend/app/api/routes/<resource>.py`
-- Always mount the router in `backend/app/api/main.py`.
+- `backend/app/api/v1/schemas/<resource>.py`
+- `backend/app/api/v1/handlers/<resource>.py`
+- `backend/app/api/v1/routes/<resource>.py`
+- Register resource routers in `backend/app/api/v1/router.py`.
+- Mount version routers in `backend/app/api/main.py` (for v1, use `/api/v1`).
 
 ## Schema Rules
 - Define request and response models with Pydantic v2.

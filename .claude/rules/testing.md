@@ -28,4 +28,7 @@
 - Use function-based tests only (`test_*`).
 - Do not use class-based tests.
 - Name tests with `test_<what>_<scenario>`.
+- For API endpoint tests in `backend/tests/api`, name tests as `test_<resource_path>_<http_verb>_<behavior>`.
+- Keep the HTTP verb immediately before the behavior suffix (example: `test_api_v1_submissions_post_returns_201_with_submission`).
+- Convert route segments to snake_case in `<resource_path>` (example: `/api/v1/submissions` -> `api_v1_submissions`).
 - Avoid mocks unless the dependency cannot be emulated locally.
