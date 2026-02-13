@@ -29,8 +29,6 @@ services:
       target: api
     env_file:
       - ../.env
-    environment:
-      PYTHONBREAKPOINT: ${PYTHONBREAKPOINT:-IPython.core.debugger.set_trace}
     command: ["sh", "/app/scripts/start-api-dev.sh"]
     volumes:
       - ../backend:/app
@@ -48,8 +46,6 @@ services:
       target: worker
     env_file:
       - ../.env
-    environment:
-      PYTHONBREAKPOINT: ${PYTHONBREAKPOINT:-IPython.core.debugger.set_trace}
     volumes:
       - ../backend:/app
     depends_on:

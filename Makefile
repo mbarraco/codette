@@ -1,4 +1,4 @@
-COMPOSE := docker compose --env-file .env -f infra/docker-compose.yml
+COMPOSE := docker compose -f infra/docker-compose.yml
 TEST_DB_NAME ?= codette_test
 
 .PHONY: setup up down build logs ps db-shell \

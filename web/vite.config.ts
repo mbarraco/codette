@@ -10,7 +10,9 @@ export default defineConfig({
       "/api": {
         target: "http://api:8000",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
+        // Keep versioned API routes intact, but map legacy /api/health to /health.
+        rewrite: (path) =>
+          path === "/api/health" ? "/health" : path,
       },
     },
   },
