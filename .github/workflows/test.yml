@@ -16,8 +16,24 @@ jobs:
       - name: Copy env file
         run: cp .env.example .env
 
+      - name: Restore test image cache
+        id: test-image-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/codette-test-image.tar
+          key: ${{ runner.os }}-codette-test-image-${{ hashFiles('backend/Dockerfile', 'backend/pyproject.toml', 'backend/uv.lock') }}
+
+      - name: Load cached test image
+        if: steps.test-image-cache.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/codette-test-image.tar
+
       - name: Build test image
+        if: steps.test-image-cache.outputs.cache-hit != 'true'
         run: docker compose --env-file .env -f infra/docker-compose.yml --profile test build test
+
+      - name: Save test image to cache
+        if: steps.test-image-cache.outputs.cache-hit != 'true'
+        run: docker save codette-test:latest -o /tmp/codette-test-image.tar
 
       - name: Run tests
         run: docker compose --env-file .env -f infra/docker-compose.yml --profile test run --rm test

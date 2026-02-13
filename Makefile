@@ -3,7 +3,7 @@ COMPOSE := docker compose --env-file .env -f infra/docker-compose.yml
 .PHONY: setup up down build logs ps db-shell \
         up-api up-web up-worker \
         migrate restart clean \
-        test test-shell
+        test test-build test-shell
 
 ## ---------- First-time setup ----------
 
@@ -58,6 +58,9 @@ migrate: ## Run Alembic migrations inside the API container
 
 test:
 	$(COMPOSE) --profile test run --rm test
+
+test-build: ## Rebuild test image, then run tests
+	$(COMPOSE) --profile test run --rm --build test
 
 test-shell: ## Open a bash shell in the test container
 	$(COMPOSE) --profile test run --rm --entrypoint /bin/bash test
