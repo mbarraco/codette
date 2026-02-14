@@ -9,7 +9,7 @@ export default defineConfig({
   retries: 1,
   workers: 1,
   use: {
-    baseURL: process.env.BASE_URL ?? "http://web:5173",
+    baseURL: process.env.BASE_URL ?? "http://web-e2e:5173",
     headless: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

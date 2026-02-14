@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { basicSetup } from "codemirror";
 import { python } from "@codemirror/lang-python";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { linter, type Diagnostic } from "@codemirror/lint";
 import styles from "./SubmissionsPage.module.css";
 
 type SubmissionData = {
@@ -18,20 +19,25 @@ type SubmissionData = {
 type ProblemOption = {
   uuid: string;
   title: string;
+  function_signature: string | null;
 };
 
 function CodeEditor({
   value,
   onChange,
+  functionSignature,
 }: {
   value: string;
   onChange: (val: string) => void;
+  functionSignature: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const lintCompartment = useRef(new Compartment());
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const suppressSync = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -41,8 +47,10 @@ function CodeEditor({
       extensions: [
         basicSetup,
         python(),
+        lintCompartment.current.of([]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
+            suppressSync.current = true;
             onChangeRef.current(update.state.doc.toString());
           }
         }),
@@ -56,6 +64,60 @@ function CodeEditor({
     // Only create editor once when mounted
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    if (suppressSync.current) {
+      suppressSync.current = false;
+      return;
+    }
+    const current = view.state.doc.toString();
+    if (current !== value) {
+      view.dispatch({
+        changes: { from: 0, to: current.length, insert: value },
+      });
+    }
+  }, [value]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    if (!functionSignature) {
+      view.dispatch({
+        effects: lintCompartment.current.reconfigure([]),
+      });
+      return;
+    }
+
+    const match = functionSignature.match(/def\s+(\w+)\s*\(/);
+    const expectedName = match ? match[1] : null;
+
+    if (!expectedName) {
+      view.dispatch({
+        effects: lintCompartment.current.reconfigure([]),
+      });
+      return;
+    }
+
+    const sigLinter = linter((view) => {
+      const doc = view.state.doc.toString();
+      const pattern = new RegExp(`def\\s+${expectedName}\\s*\\(`);
+      if (pattern.test(doc)) return [];
+      const diagnostic: Diagnostic = {
+        from: 0,
+        to: Math.min(doc.length, 1),
+        severity: "warning",
+        message: `Expected function definition: ${functionSignature}`,
+      };
+      return [diagnostic];
+    });
+
+    view.dispatch({
+      effects: lintCompartment.current.reconfigure(sigLinter),
+    });
+  }, [functionSignature]);
 
   return <div ref={containerRef} className={styles.editor} />;
 }
@@ -98,6 +160,30 @@ function SubmissionsPage() {
     fetchData();
   }, []);
 
+  const selectedFunctionSignature = useMemo(() => {
+    if (!selectedProblem) return null;
+    const p = problems.find((prob) => prob.uuid === selectedProblem);
+    return p?.function_signature ?? null;
+  }, [selectedProblem, problems]);
+
+  const handleProblemChange = useCallback(
+    (uuid: string) => {
+      setSelectedProblem(uuid);
+      if (!uuid) {
+        setCode("");
+        return;
+      }
+      const p = problems.find((prob) => prob.uuid === uuid);
+      const sig = p?.function_signature;
+      if (sig) {
+        setCode(`${sig}\n    # Write your solution here\n`);
+      } else {
+        setCode("");
+      }
+    },
+    [problems],
+  );
+
   const handleCodeChange = useCallback((val: string) => {
     setCode(val);
   }, []);
@@ -137,7 +223,11 @@ function SubmissionsPage() {
     <div className="page">
       <div className={styles.header}>
         <h1>Submissions</h1>
-        <button onClick={() => setShowForm(!showForm)}>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setShowForm(!showForm)}
+        >
           {showForm ? "Cancel" : "New Submission"}
         </button>
       </div>
@@ -148,7 +238,7 @@ function SubmissionsPage() {
             Problem
             <select
               value={selectedProblem}
-              onChange={(e) => setSelectedProblem(e.target.value)}
+              onChange={(e) => handleProblemChange(e.target.value)}
               required
             >
               <option value="">Select a problem...</option>
@@ -162,7 +252,11 @@ function SubmissionsPage() {
 
           <div>
             <label>Code</label>
-            <CodeEditor value={code} onChange={handleCodeChange} />
+            <CodeEditor
+              value={code}
+              onChange={handleCodeChange}
+              functionSignature={selectedFunctionSignature}
+            />
           </div>
 
           {error && <p className={styles.error}>{error}</p>}

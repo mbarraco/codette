@@ -38,6 +38,7 @@ def post_problem(
         test_cases=[tc.model_dump() for tc in body.test_cases]
         if body.test_cases
         else None,
+        function_signature=body.function_signature,
     )
 
 

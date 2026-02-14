@@ -70,7 +70,39 @@ def test_create_submission_uploads_test_cases(
 
     assert tc_blob.exists()
     uploaded = json.loads(tc_blob.download_as_text())
-    assert uploaded == test_cases
+    assert uploaded == {"function_signature": None, "test_cases": test_cases}
+
+
+def test_create_submission_uploads_test_cases_with_function_signature(
+    db: Session, storage: StorageAdapter, problem: Problem
+) -> None:
+    code = "def add(a, b):\n    return a + b\n"
+    test_cases = [{"input": [1, 2], "expected": 3}]
+    repo = SubmissionRepository()
+
+    submission = create_submission(
+        db=db,
+        repo=repo,
+        storage=storage,
+        problem_id=problem.id,
+        code=code,
+        test_cases=test_cases,
+        function_signature="def add(a, b):",
+    )
+
+    parts = submission.artifact_uri.split("/", 3)
+    base_path = parts[3].rsplit("/", 1)[0]
+
+    client = gcs.Client()
+    bucket = client.bucket("codette-test")
+    tc_blob = bucket.blob(f"{base_path}/test_cases.json")
+
+    assert tc_blob.exists()
+    uploaded = json.loads(tc_blob.download_as_text())
+    assert uploaded == {
+        "function_signature": "def add(a, b):",
+        "test_cases": test_cases,
+    }
 
 
 def test_create_submission_without_test_cases_skips_upload(

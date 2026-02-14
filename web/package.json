@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@codemirror/basic-setup": "^0.20.0",
     "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/lint": "^6.9.4",
     "@codemirror/state": "^6.5.4",
     "@codemirror/view": "^6.39.14",
     "codemirror": "^6.0.2",

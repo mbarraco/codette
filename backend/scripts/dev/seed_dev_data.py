@@ -16,6 +16,7 @@ class ProblemSeed:
     hints: str | None
     examples: str | None
     test_cases: list[dict] | None
+    function_signature: str
 
 
 SEED_PROBLEMS: tuple[ProblemSeed, ...] = (
@@ -33,6 +34,7 @@ SEED_PROBLEMS: tuple[ProblemSeed, ...] = (
             {"input": [-1, 4], "output": 3},
             {"input": [0, 0], "output": 0},
         ],
+        function_signature="def add(a, b):",
     ),
     ProblemSeed(
         uuid=uuid.UUID("0ecf2d34-5f0c-45ce-a83a-bf1063f4042a"),
@@ -68,6 +70,7 @@ SEED_PROBLEMS: tuple[ProblemSeed, ...] = (
                 ],
             },
         ],
+        function_signature="def fizzbuzz(n):",
     ),
     ProblemSeed(
         uuid=uuid.UUID("8a57bcd1-0709-4b95-8db3-02f2ec2cf278"),
@@ -83,6 +86,7 @@ SEED_PROBLEMS: tuple[ProblemSeed, ...] = (
             {"input": [-121], "output": False},
             {"input": [10], "output": False},
         ],
+        function_signature="def is_palindrome(x):",
     ),
 )
 
@@ -98,6 +102,7 @@ def _upsert_problem(db: Session, seed: ProblemSeed) -> bool:
                 hints=seed.hints,
                 examples=seed.examples,
                 test_cases=seed.test_cases,
+                function_signature=seed.function_signature,
                 deleted_at=None,
             )
         )
@@ -109,6 +114,7 @@ def _upsert_problem(db: Session, seed: ProblemSeed) -> bool:
     problem.hints = seed.hints
     problem.examples = seed.examples
     problem.test_cases = seed.test_cases
+    problem.function_signature = seed.function_signature
     problem.deleted_at = None
     db.flush()
     return False

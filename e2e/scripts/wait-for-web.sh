@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-URL="${BASE_URL:-http://web:5173}"
+URL="${BASE_URL:-http://web-e2e:5173}"
 RETRIES="${WAIT_RETRIES:-40}"
 SLEEP="${WAIT_SLEEP_SECONDS:-2}"
 

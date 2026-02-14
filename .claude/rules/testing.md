@@ -11,7 +11,7 @@
 - Local debug runs must use `backend/.env.test` and `uv run pytest tests/ -v` from `backend/`.
 
 ## Database and Fixture Rules
-- Always use the dedicated `codette_test` database for tests.
+- Always use the dedicated `<project>_test` database for tests.
 - Always create the test schema with `Base.metadata.create_all()` at session start.
 - Always wrap each test in a transaction and roll it back after the test.
 - Never seed test data inline in test functions when a fixture is appropriate.
@@ -86,11 +86,11 @@ def test_api_v1_submissions_post_returns_201_with_submission(
 ) -> None:
     response = client.post(
         "/api/v1/submissions/",
-        json={"problem_id": problem.id, "code": "def add(a, b): return a + b"},
+        json={"problem_uuid": str(problem.uuid), "code": "def add(a, b): return a + b"},
     )
     assert response.status_code == 201
     body = response.json()
-    assert body["problem_id"] == problem.id
+    assert body["problem_uuid"] == str(problem.uuid)
     assert body["uuid"] is not None
 
 def test_api_v1_submissions_get_returns_empty_list(client: TestClient) -> None:

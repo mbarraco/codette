@@ -29,6 +29,7 @@ test.describe("Submission CRUD", () => {
       data: {
         title: "Add Numbers",
         statement: "Return the sum of two integers.",
+        function_signature: "def add(a, b):",
       },
     });
     const problem = await problemRes.json();
@@ -63,6 +64,7 @@ test.describe("Submission CRUD", () => {
       data: {
         title: "FizzBuzz",
         statement: "Return FizzBuzz sequence.",
+        function_signature: "def fizzbuzz(n):",
       },
     });
     const problem = await problemRes.json();

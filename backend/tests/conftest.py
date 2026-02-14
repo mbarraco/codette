@@ -42,6 +42,7 @@ def problem(db: Session) -> Problem:
         statement="Return the sum of two integers.",
         hints="Think about the + operator.",
         examples="add(1, 2) == 3",
+        function_signature="def add(a, b):",
     )
     db.add(p)
     db.flush()

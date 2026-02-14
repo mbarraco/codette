@@ -22,6 +22,7 @@ test.describe("Problem CRUD", () => {
     ).toBeVisible();
 
     await page.getByLabel("Title").fill("Two Sum");
+    await page.getByLabel("Function Signature").fill("def add(a, b):");
     await page.getByLabel("Statement").fill(
       "Return the sum of two integers.",
     );

@@ -22,6 +22,7 @@ class ProblemRepository:
         hints: str | None,
         examples: str | None,
         test_cases: list[dict] | None,
+        function_signature: str,
     ) -> Problem:
         problem = Problem(
             title=title,
@@ -29,6 +30,7 @@ class ProblemRepository:
             hints=hints,
             examples=examples,
             test_cases=test_cases,
+            function_signature=function_signature,
         )
         db.add(problem)
         db.flush()

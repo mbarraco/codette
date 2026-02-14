@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     runner_job_name: str = "codette-runner"
     grader_job_name: str = "codette-grader"
 
+    # Local mode settings (used when GCP_PROJECT is not set)
+    runner_image: str = "codette-runner"
+    grader_image: str = "codette-grader"
+    docker_network: str = "codette_default"
+    storage_emulator_host: str | None = None
+
 
 class TestSettings(BaseSettings):
     model_config = SettingsConfigDict(

@@ -30,6 +30,7 @@ def handle_create_problem(
     hints: str | None,
     examples: str | None,
     test_cases: list[dict] | None,
+    function_signature: str,
 ) -> Problem:
     repo = ProblemRepository()
     problem = repo.create(
@@ -39,6 +40,7 @@ def handle_create_problem(
         hints=hints,
         examples=examples,
         test_cases=test_cases,
+        function_signature=function_signature,
     )
     db.commit()
     return problem

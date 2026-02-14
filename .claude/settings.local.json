@@ -17,7 +17,14 @@
       "Bash(uv run alembic revision:*)",
       "Bash(make:*)",
       "Bash(docker run:*)",
-      "Bash(git -C /Users/mbarraco/code/codette mv images jobs)"
+      "Bash(git -C /Users/mbarraco/code/codette mv images jobs)",
+      "Bash(npm ls:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(node -e:*)",
+      "Bash(npx vite build:*)",
+      "Bash(lsof:*)"
     ]
   }
 }

@@ -54,13 +54,11 @@ def test_gcp_task_run_adapter_execute_succeeded(mock_client_cls: MagicMock) -> N
     assert outcome["execution_ref"] == execution.name
     assert outcome["error"] is None
 
-    # Verify the job was called with correct env override
+    # Verify the job was called with correct args override
     call_args = mock_client.run_job.call_args
     run_job_req = call_args.kwargs["request"]
-    env_vars = run_job_req.overrides.container_overrides[0].env
-    assert len(env_vars) == 1
-    assert env_vars[0].name == "RUN_UUID"
-    assert env_vars[0].value == "abc-123"
+    args = run_job_req.overrides.container_overrides[0].args
+    assert args == ["abc-123"]
 
 
 @patch("app.adapters.task_run.run_v2.ExecutionsClient")

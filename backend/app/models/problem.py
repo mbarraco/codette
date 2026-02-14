@@ -16,4 +16,5 @@ class Problem(BaseMixin, Base):
     test_cases: Mapped[list[dict] | None] = mapped_column(
         JSON, nullable=True, default=None
     )
+    function_signature: Mapped[str] = mapped_column(Text, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True, default=None)

@@ -13,6 +13,7 @@ type ProblemData = {
   hints: string | null;
   examples: string | null;
   test_cases: TestCase[] | null;
+  function_signature: string | null;
   created_at: string;
 };
 
@@ -23,6 +24,7 @@ type TestCaseRow = {
 
 type FormData = {
   title: string;
+  functionSignature: string;
   statement: string;
   hints: string;
   examples: string;
@@ -33,6 +35,7 @@ const emptyRow: TestCaseRow = { input: "", output: "" };
 
 const emptyForm: FormData = {
   title: "",
+  functionSignature: "",
   statement: "",
   hints: "",
   examples: "",
@@ -73,6 +76,7 @@ function ProblemsPage() {
     setEditingUuid(p.uuid);
     setForm({
       title: p.title,
+      functionSignature: p.function_signature ?? "",
       statement: p.statement,
       hints: p.hints ?? "",
       examples: p.examples ?? "",
@@ -151,6 +155,7 @@ function ProblemsPage() {
       hints: form.hints || null,
       examples: form.examples || null,
       test_cases: testCases,
+      function_signature: form.functionSignature || null,
     };
 
     if (editingUuid) {
@@ -237,6 +242,19 @@ function ProblemsPage() {
                   type="text"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Function Signature *
+                <input
+                  type="text"
+                  value={form.functionSignature}
+                  onChange={(e) =>
+                    setForm({ ...form, functionSignature: e.target.value })
+                  }
+                  placeholder="def solve(a, b):"
+                  style={{ fontFamily: "monospace" }}
                   required
                 />
               </label>

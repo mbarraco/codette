@@ -28,6 +28,26 @@ services:
     volumes:
       - gcs_data:/data
 
+  migrate:
+    build:
+      context: ../backend
+      target: api
+    env_file:
+      - ../.env
+    command:
+      [
+        "sh",
+        "-c",
+        "python /app/scripts/dev/wait_for_dependencies.py && alembic upgrade head",
+      ]
+    volumes:
+      - ../backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      gcs:
+        condition: service_started
+
   api:
     build:
       context: ../backend
@@ -40,10 +60,14 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
+      # Runtime deps (explicit even though migrate implies them)
       db:
         condition: service_healthy
       gcs:
         condition: service_started
+      # Schema must be up-to-date before serving requests
+      migrate:
+        condition: service_completed_successfully
 
   worker:
     build:
@@ -51,21 +75,21 @@ services:
       target: worker
     env_file:
       - ../.env
+    command: ["sh", "/app/scripts/dev/start-worker-dev.sh"]
+    environment:
+      STORAGE_EMULATOR_HOST: http://gcs:4443
     volumes:
       - ../backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
+      # Runtime deps (explicit even though migrate implies them)
       db:
         condition: service_healthy
-
-  web:
-    build:
-      context: ../web
-    env_file:
-      - ../.env
-    ports:
-      - "${WEB_PORT:-5173}:5173"
-    depends_on:
-      - api
+      gcs:
+        condition: service_started
+      # Schema must be up-to-date before polling
+      migrate:
+        condition: service_completed_successfully
 
   test:
     build:

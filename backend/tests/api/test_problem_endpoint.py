@@ -37,6 +37,7 @@ def test_api_v1_problems_post_returns_201_with_problem(
             "statement": "Return the product of two integers.",
             "hints": "Use the * operator.",
             "examples": "mul(2, 3) == 6",
+            "function_signature": "def mul(a, b):",
         },
     )
     assert response.status_code == 201
@@ -45,6 +46,7 @@ def test_api_v1_problems_post_returns_201_with_problem(
     assert body["statement"] == "Return the product of two integers."
     assert body["hints"] == "Use the * operator."
     assert body["examples"] == "mul(2, 3) == 6"
+    assert body["function_signature"] == "def mul(a, b):"
     assert body["test_cases"] is None
     assert "uuid" in body
     assert "id" not in body
@@ -64,11 +66,13 @@ def test_api_v1_problems_post_returns_201_with_test_cases(
             "title": "Multiply",
             "statement": "Return the product of two integers.",
             "test_cases": test_cases,
+            "function_signature": "def mul(a, b):",
         },
     )
     assert response.status_code == 201
     body = response.json()
     assert body["test_cases"] == test_cases
+    assert body["function_signature"] == "def mul(a, b):"
 
 
 def test_api_v1_problems_post_returns_422_when_title_missing(
@@ -85,6 +89,16 @@ def test_api_v1_problems_post_returns_422_when_statement_missing(
     client: TestClient,
 ) -> None:
     response = client.post("/api/v1/problems/", json={"title": "Some title"})
+    assert response.status_code == 422
+
+
+def test_api_v1_problems_post_returns_422_when_function_signature_missing(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/api/v1/problems/",
+        json={"title": "Some title", "statement": "Some statement."},
+    )
     assert response.status_code == 422
 
 
@@ -142,6 +156,16 @@ def test_api_v1_problems_uuid_patch_returns_404_when_not_found(
         json={"statement": "Does not matter."},
     )
     assert response.status_code == 404
+
+
+def test_api_v1_problems_uuid_patch_rejects_null_function_signature(
+    client: TestClient, problem: Problem
+) -> None:
+    response = client.patch(
+        f"/api/v1/problems/{problem.uuid}",
+        json={"function_signature": None},
+    )
+    assert response.status_code == 422
 
 
 def test_api_v1_problems_uuid_delete_returns_204(

@@ -1,7 +1,9 @@
 """Runner orchestrator — handles GCS I/O and launches the harness subprocess.
 
+CLI arguments:
+    RUN_UUID        — unique identifier for this execution (sys.argv[1])
+
 Environment variables:
-    RUN_UUID        — unique identifier for this execution
     STORAGE_BUCKET  — GCS bucket name (set at deploy time)
 """
 
@@ -16,7 +18,10 @@ from google.cloud import storage
 
 
 def main() -> None:
-    run_uuid = os.environ["RUN_UUID"]
+    if len(sys.argv) < 2:
+        print("Usage: run.py <RUN_UUID>", file=sys.stderr)
+        sys.exit(1)
+    run_uuid = sys.argv[1]
     bucket_name = os.environ["STORAGE_BUCKET"]
 
     client = storage.Client()
@@ -60,11 +65,21 @@ def main() -> None:
 
     # 4. Prepare harness input
     with open(test_cases_local) as f:
-        test_cases = json.load(f)
+        raw = json.load(f)
+
+    # Support both wrapped format {"function_signature": ..., "test_cases": [...]}
+    # and legacy bare list format [...]
+    if isinstance(raw, dict) and "test_cases" in raw:
+        test_cases = raw["test_cases"]
+        function_signature = raw.get("function_signature")
+    else:
+        test_cases = raw
+        function_signature = None
 
     harness_input = {
         "solution_path": solution_local,
         "test_cases": test_cases,
+        "function_signature": function_signature,
     }
 
     harness_input_file = os.path.join(work_dir, "harness_input.json")

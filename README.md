@@ -27,26 +27,23 @@ codette/
 - Python 3.12+ (for local development)
 - Node.js 20+ (for local development)
 
-### Running with Docker Compose
+### Running Backend Services with Docker Compose
 
 ```bash
 # Copy environment file
 cp .env.example .env
 
-# Start all services
-docker compose -f infra/docker-compose.yml up --build
+# Start backend services
+docker compose -f infra/docker-compose.yml up --build db gcs api worker
 
 # Apply migrations and seed development data
 make migrate
 make seed
 
-# In another terminal, verify services:
+# In another terminal, verify the API:
 # API health check
 curl http://localhost:8000/health
 # Returns: {"status": "ok"}
-
-# Web frontend
-open http://localhost:5173
 ```
 
 ### Services
@@ -54,9 +51,9 @@ open http://localhost:5173
 | Service | Port | Description |
 |---------|------|-------------|
 | db      | 5432 | PostgreSQL database |
+| gcs     | 4443 | Fake GCS server |
 | api     | 8000 | FastAPI backend |
 | worker  | -    | Background job processor |
-| web     | 5173 | React frontend |
 
 ### Building Runner/Grader Images
 
@@ -135,7 +132,7 @@ See `.env.example` for available configuration options.
 | POSTGRES_DB | codette | Database name |
 | DATABASE_URL | postgresql://... | Full database URL |
 | API_PORT | 8000 | API server port |
-| WEB_PORT | 5173 | Web dev server port |
+| GCS_PORT | 4443 | Fake GCS server port |
 
 ## Development Seed Data
 

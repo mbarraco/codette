@@ -3,6 +3,7 @@ import time
 from sqlalchemy import text
 
 from app.adapters.db import SessionLocal
+from app.adapters.local_task_run import LocalTaskRunAdapter
 from app.adapters.repository.run import RunRepository
 from app.adapters.repository.submission_evaluation import SubmissionEvaluationRepository
 from app.adapters.repository.submission_queue import SubmissionQueueRepository
@@ -28,26 +29,42 @@ def main() -> None:
         db.execute(text("SELECT 1"))
         logger.info("Connected to DB")
 
-    if settings.gcp_project is None:
-        logger.warning(
-            "GCP_PROJECT not set — worker cannot launch Cloud Run Jobs. "
-            "Set GCP_PROJECT to enable the SEA pipeline."
+    if settings.gcp_project is not None:
+        # Production: GCP Cloud Run Jobs
+        runner_adapter = GcpTaskRunAdapter(
+            project=settings.gcp_project,
+            location=settings.gcp_location,
+            job_name=settings.runner_job_name,
         )
-        # Idle loop when GCP is not configured
+        grader_adapter = GcpTaskRunAdapter(
+            project=settings.gcp_project,
+            location=settings.gcp_location,
+            job_name=settings.grader_job_name,
+        )
+    elif settings.storage_emulator_host:
+        # Local mode: Docker sibling containers
+        logger.info("Local mode — using Docker containers for runner/grader")
+        runner_adapter = LocalTaskRunAdapter(
+            image_name=settings.runner_image,
+            network=settings.docker_network,
+            storage_bucket=settings.storage_bucket,
+            storage_emulator_host=settings.storage_emulator_host,
+        )
+        grader_adapter = LocalTaskRunAdapter(
+            image_name=settings.grader_image,
+            network=settings.docker_network,
+            storage_bucket=settings.storage_bucket,
+            storage_emulator_host=settings.storage_emulator_host,
+        )
+    else:
+        logger.warning(
+            "Neither GCP_PROJECT nor STORAGE_EMULATOR_HOST set — worker idling. "
+            "Set GCP_PROJECT for production or STORAGE_EMULATOR_HOST for local dev."
+        )
         while True:
             time.sleep(10)
 
     storage = StorageAdapter(settings.storage_bucket)
-    runner_adapter = GcpTaskRunAdapter(
-        project=settings.gcp_project,
-        location=settings.gcp_location,
-        job_name=settings.runner_job_name,
-    )
-    grader_adapter = GcpTaskRunAdapter(
-        project=settings.gcp_project,
-        location=settings.gcp_location,
-        job_name=settings.grader_job_name,
-    )
     request_factory = ExecutionRequestFactory(
         storage_bucket=settings.storage_bucket,
         storage=storage,

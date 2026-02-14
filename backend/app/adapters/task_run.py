@@ -40,9 +40,7 @@ class GcpTaskRunAdapter:
             overrides=run_v2.RunJobRequest.Overrides(
                 container_overrides=[
                     run_v2.RunJobRequest.Overrides.ContainerOverride(
-                        env=[
-                            run_v2.EnvVar(name="RUN_UUID", value=run_uuid),
-                        ],
+                        args=[run_uuid],
                     ),
                 ],
             ),

@@ -27,7 +27,13 @@ def handle_create_submission(
     storage = StorageAdapter(settings.storage_bucket)
     repo = SubmissionRepository()
     submission = create_submission(
-        db, repo, storage, problem.id, code, test_cases=problem.test_cases
+        db,
+        repo,
+        storage,
+        problem.id,
+        code,
+        test_cases=problem.test_cases,
+        function_signature=problem.function_signature,
     )
     queue_repo = SubmissionQueueRepository()
     queue_repo.create(db, submission_id=submission.id)
