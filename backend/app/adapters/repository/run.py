@@ -27,6 +27,8 @@ class RunRepository:
         *,
         status: str | None = None,
         execution_ref: str | None = None,
+        failure_stage: str | None = None,
+        failure_error: str | None = None,
         runner_output_uri: str | None = None,
         grader_output_uri: str | None = None,
     ) -> None:
@@ -35,6 +37,10 @@ class RunRepository:
             run.status = status
         if execution_ref is not None:
             run.execution_ref = execution_ref
+        if failure_stage is not None:
+            run.failure_stage = failure_stage
+        if failure_error is not None:
+            run.failure_error = failure_error
         if runner_output_uri is not None:
             run.runner_output_uri = runner_output_uri
         if grader_output_uri is not None:

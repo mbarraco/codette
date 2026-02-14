@@ -51,7 +51,10 @@ class SubmissionQueueRepository:
         return list(db.scalars(stmt).all())
 
     def mark_failed(self, db: Session, entry: SubmissionQueue, error: str) -> None:
-        """Record a failure on a queue entry."""
+        """Record failure details for the current attempt.
+
+        ``attempt_count`` is incremented in ``claim_next`` when the worker
+        dequeues an item for processing; do not increment again here.
+        """
         entry.last_error = error
-        entry.attempt_count += 1
         db.flush()

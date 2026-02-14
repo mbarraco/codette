@@ -115,6 +115,8 @@ def test_api_v1_submissions_get_returns_nested_data(
     assert detail["problem_uuid"] == str(problem.uuid)
     assert len(detail["runs"]) == 1
     assert detail["runs"][0]["status"] == "completed"
+    assert detail["runs"][0]["failure_stage"] is None
+    assert detail["runs"][0]["failure_error"] is None
     assert len(detail["evaluations"]) == 1
     assert detail["evaluations"][0]["success"] is True
     assert len(detail["queue_entries"]) == 1

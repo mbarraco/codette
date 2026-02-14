@@ -44,7 +44,12 @@ def test_api_v1_queue_get_includes_runs_and_evaluations(
     db.add(sub)
     db.flush()
 
-    run = Run(submission_id=sub.id, status="done")
+    run = Run(
+        submission_id=sub.id,
+        status="failed",
+        failure_stage="grader",
+        failure_error="Grader container failed",
+    )
     db.add(run)
     db.flush()
 
@@ -60,6 +65,8 @@ def test_api_v1_queue_get_includes_runs_and_evaluations(
 
     item = next(e for e in body if e["uuid"] == str(entry.uuid))
     assert len(item["runs"]) == 1
-    assert item["runs"][0]["status"] == "done"
+    assert item["runs"][0]["status"] == "failed"
+    assert item["runs"][0]["failure_stage"] == "grader"
+    assert item["runs"][0]["failure_error"] == "Grader container failed"
     assert len(item["evaluations"]) == 1
     assert item["evaluations"][0]["success"] is True

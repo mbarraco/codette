@@ -12,6 +12,8 @@ class Run(BaseMixin, Base):
     )
     execution_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(default="queued", nullable=False)
+    failure_stage: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     runner_output_uri: Mapped[str | None] = mapped_column(nullable=True)
     grader_output_uri: Mapped[str | None] = mapped_column(nullable=True)
 

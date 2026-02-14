@@ -22,6 +22,8 @@ class RunSummary(BaseModel):
     uuid: UUID
     status: str
     execution_ref: str | None
+    failure_stage: str | None
+    failure_error: str | None
     runner_output_uri: str | None
     grader_output_uri: str | None
     created_at: datetime

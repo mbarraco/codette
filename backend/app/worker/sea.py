@@ -61,10 +61,18 @@ class SeaWorker:
             runner_output_uri=runner_request["output_uri"],
         )
         try:
-            if not self._execute_runner(run=run, runner_request=runner_request):
+            if not self._execute_runner(
+                entry=entry,
+                run=run,
+                runner_request=runner_request,
+            ):
                 return entry
 
-            if not self._execute_grader(run=run, grader_request=grader_request):
+            if not self._execute_grader(
+                entry=entry,
+                run=run,
+                grader_request=grader_request,
+            ):
                 return entry
 
             self._evaluate_run(
@@ -72,16 +80,32 @@ class SeaWorker:
                 submission_id=submission.id,
                 grader_output_uri=grader_request["output_uri"],
             )
-        except Exception:
-            self.run_repo.update(self.db, run, status="failed")
+        except Exception as exc:
+            self._mark_run_failed(
+                entry=entry,
+                run=run,
+                stage="worker",
+                error=str(exc),
+            )
             raise
 
         return entry
 
-    def _execute_runner(self, run: Run, runner_request: RunnerRequest) -> bool:
+    def _execute_runner(
+        self,
+        entry: SubmissionQueue,
+        run: Run,
+        runner_request: RunnerRequest,
+    ) -> bool:
         runner_outcome = self.runner_adapter.execute(runner_request)
         if runner_outcome["status"] != ExecutionStatus.SUCCEEDED:
-            self.run_repo.update(self.db, run, status="failed")
+            self._mark_run_failed(
+                entry=entry,
+                run=run,
+                stage="runner",
+                error=runner_outcome["error"],
+                execution_ref=runner_outcome["execution_ref"],
+            )
             return False
 
         self.run_repo.update(
@@ -93,10 +117,20 @@ class SeaWorker:
         )
         return True
 
-    def _execute_grader(self, run: Run, grader_request: GraderRequest) -> bool:
+    def _execute_grader(
+        self,
+        entry: SubmissionQueue,
+        run: Run,
+        grader_request: GraderRequest,
+    ) -> bool:
         grader_outcome = self.grader_adapter.execute(grader_request)
         if grader_outcome["status"] != ExecutionStatus.SUCCEEDED:
-            self.run_repo.update(self.db, run, status="failed")
+            self._mark_run_failed(
+                entry=entry,
+                run=run,
+                stage="grader",
+                error=grader_outcome["error"],
+            )
             return False
 
         self.run_repo.update(
@@ -121,3 +155,22 @@ class SeaWorker:
             metadata={"summary": grader_output["summary"]},
         )
         self.run_repo.update(self.db, run, status="done")
+
+    def _mark_run_failed(
+        self,
+        entry: SubmissionQueue,
+        run: Run,
+        stage: str,
+        error: str | None,
+        execution_ref: str | None = None,
+    ) -> None:
+        error_text = error or "Execution failed"
+        self.run_repo.update(
+            self.db,
+            run,
+            status="failed",
+            execution_ref=execution_ref,
+            failure_stage=stage,
+            failure_error=error_text,
+        )
+        self.queue_repo.mark_failed(self.db, entry, error=error_text)
