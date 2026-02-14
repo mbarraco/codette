@@ -3,10 +3,10 @@ TEST_DB_NAME ?= codette_test
 E2E_DB_NAME ?= codette_e2e
 
 .PHONY: setup up down build logs ps db-shell \
-        up-api up-web up-worker \
+        up-api up-worker \
         migrate seed restart clean setup-tests \
         test test-build test-shell \
-        setup-e2e e2e e2e-build
+        e2e e2e-build
 
 ## ---------- First-time setup ----------
 
@@ -36,9 +36,6 @@ clean: ## Stop services and remove volumes
 
 up-api: ## Start only API + DB
 	$(COMPOSE) up -d api
-
-up-web: ## Start only Web + API + DB
-	$(COMPOSE) up -d web
 
 up-worker: ## Start only Worker + DB
 	$(COMPOSE) up -d worker
@@ -77,16 +74,11 @@ test-shell: ## Open a bash shell in the test container
 
 ## ---------- E2E tests ----------
 
-setup-e2e: .env ## Reset e2e database (drop + recreate)
-	$(COMPOSE) --profile e2e stop api-e2e web-e2e 2>/dev/null || true
-	$(COMPOSE) up -d db gcs
-	$(COMPOSE) exec -T db sh -c '/scripts/wait-for-pg.sh && /scripts/reset-db.sh $(E2E_DB_NAME)'
+e2e: .env ## Run Playwright end-to-end tests in Docker
+	E2E_DB_NAME=$(E2E_DB_NAME) sh ./scripts/run-e2e.sh run
 
-e2e: setup-e2e ## Run Playwright end-to-end tests in Docker
-	$(COMPOSE) --profile e2e run --rm e2e
-
-e2e-build: setup-e2e ## Rebuild e2e image, then run Playwright tests
-	$(COMPOSE) --profile e2e run --rm --build e2e
+e2e-build: .env ## Rebuild e2e image, then run Playwright tests
+	E2E_DB_NAME=$(E2E_DB_NAME) sh ./scripts/run-e2e.sh build
 
 ## ---------- Tool images ----------
 
