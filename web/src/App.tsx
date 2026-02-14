@@ -1,22 +1,21 @@
-import { useEffect, useState } from "react";
+import { useFetch } from "./hooks/useFetch";
 import styles from "./App.module.css";
 
-function App() {
-  const [health, setHealth] = useState<string | null>(null);
+type HealthResponse = {
+  status: string;
+};
 
-  useEffect(() => {
-    fetch("/api/health")
-      .then((res) => res.json())
-      .then((data) => setHealth(data.status))
-      .catch(() => setHealth("error"));
-  }, []);
+function App() {
+  const { data, error } = useFetch<HealthResponse>("/api/health");
+
+  const healthText = error ? "error" : (data?.status ?? "loading...");
 
   return (
     <div className={`page ${styles.hero}`}>
       <h1>Codette</h1>
       <p className={styles.subtitle}>Mini-LeetCode Platform</p>
       <p className={styles.status}>
-        API Health: <strong>{health ?? "loading..."}</strong>
+        API Health: <strong>{healthText}</strong>
       </p>
     </div>
   );

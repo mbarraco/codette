@@ -1,0 +1,19 @@
+.copyButton {
+  border: 1px solid var(--border-mid);
+  border-radius: 6px;
+  background: var(--color-white);
+  color: var(--text-primary);
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.copyButton:hover {
+  background: var(--bg-surface);
+}
+
+.copiedTag {
+  color: var(--status-done-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}

@@ -7,46 +7,6 @@
   margin-bottom: 2.5rem;
 }
 
-.badge {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.badgePending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.badgeProcessing {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.badgeDone {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.badgeFailed {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.badgeQueued {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.badgeRunnerDone {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
 .mono {
   font-family: monospace;
   font-size: 0.85rem;
@@ -60,21 +20,21 @@
 }
 
 .detailsButton {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-mid);
   border-radius: 6px;
-  background: #f9fafb;
-  color: #111827;
+  background: var(--bg-surface);
+  color: var(--text-primary);
   padding: 0.2rem 0.55rem;
   font-size: 0.8rem;
   cursor: pointer;
 }
 
 .detailsButton:hover {
-  background: #f3f4f6;
+  background: var(--bg-hover);
 }
 
 .detailsRow {
-  background: #fafafa;
+  background: var(--bg-subtle);
 }
 
 .detailsCell {
@@ -91,34 +51,14 @@
   font-size: 0.85rem;
 }
 
-.copyButton {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #111827;
-  padding: 0.15rem 0.45rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.copyButton:hover {
-  background: #f9fafb;
-}
-
-.copiedTag {
-  color: #065f46;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
 .errorBox {
   max-width: 100%;
   max-height: 8rem;
   overflow: auto;
   margin-bottom: 0.5rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--color-white);
   padding: 0.6rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.78rem;
@@ -134,9 +74,9 @@
   margin: 0;
   max-height: 14rem;
   overflow: auto;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--color-white);
   padding: 0.75rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.78rem;

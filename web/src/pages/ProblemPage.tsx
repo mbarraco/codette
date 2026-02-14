@@ -1,52 +1,23 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
+import type { Problem, SubmissionSummary } from "../types/api";
+import { useFetch } from "../hooks/useFetch";
 import styles from "./ProblemPage.module.css";
-
-type ProblemData = {
-  uuid: string;
-  title: string;
-  statement: string;
-  hints: string | null;
-  examples: string | null;
-  created_at: string;
-};
-
-type SubmissionResponse = {
-  uuid: string;
-  artifact_uri: string;
-  problem_uuid: string;
-  created_at: string;
-};
 
 type SubmitState = "idle" | "submitting" | "success" | "error";
 
 function ProblemPage() {
   const { uuid } = useParams<{ uuid: string }>();
 
-  const [problem, setProblem] = useState<ProblemData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const { data: problem, loading, error: fetchError } = useFetch<Problem>(
+    `/api/v1/problems/${uuid}`,
+  );
 
   const [code, setCode] = useState("def solve():\n    return 42\n");
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [statusCode, setStatusCode] = useState<number | null>(null);
-  const [submission, setSubmission] = useState<SubmissionResponse | null>(null);
-  const [submitError, setSubmitError] = useState<unknown>(null);
-
-  useEffect(() => {
-    if (!uuid) return;
-    setLoading(true);
-    setFetchError(null);
-
-    fetch(`/api/v1/problems/${uuid}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Problem not found (${res.status})`);
-        return res.json();
-      })
-      .then((data) => setProblem(data))
-      .catch((err) => setFetchError(err.message))
-      .finally(() => setLoading(false));
-  }, [uuid]);
+  const [submission, setSubmission] = useState<SubmissionSummary | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -64,26 +35,28 @@ function ProblemPage() {
         body: JSON.stringify({ problem_uuid: uuid, code }),
       });
 
+      setStatusCode(response.status);
+
       const contentType = response.headers.get("content-type") ?? "";
       const body = contentType.includes("application/json")
         ? await response.json()
         : await response.text();
 
-      setStatusCode(response.status);
-
       if (!response.ok) {
         setSubmitState("error");
-        setSubmitError(body);
+        const detail =
+          typeof body === "object" && body !== null && "detail" in body
+            ? String(body.detail)
+            : `Error ${response.status}`;
+        setSubmitError(detail);
         return;
       }
 
       setSubmitState("success");
-      setSubmission(body as SubmissionResponse);
-    } catch (error) {
+      setSubmission(body as SubmissionSummary);
+    } catch (err) {
       setSubmitState("error");
-      setSubmitError({
-        message: error instanceof Error ? error.message : "Unexpected error",
-      });
+      setSubmitError(err instanceof Error ? err.message : "Unexpected error");
     }
   };
 
@@ -142,15 +115,14 @@ function ProblemPage() {
 
       {submission ? (
         <div className={styles.resultBlock}>
-          <h3>Success JSON</h3>
+          <h3>Submission Created</h3>
           <pre>{JSON.stringify(submission, null, 2)}</pre>
         </div>
       ) : null}
 
       {submitError ? (
         <div className={styles.resultBlock}>
-          <h3>Error JSON</h3>
-          <pre>{JSON.stringify(submitError, null, 2)}</pre>
+          <p className="error-text">{submitError}</p>
         </div>
       ) : null}
     </div>

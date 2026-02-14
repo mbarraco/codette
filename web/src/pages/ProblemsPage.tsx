@@ -1,21 +1,9 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
+import type { TestCase, Problem } from "../types/api";
+import { useFetch } from "../hooks/useFetch";
+import PageHeader from "../components/PageHeader";
+import DataTable from "../components/DataTable";
 import styles from "./ProblemsPage.module.css";
-
-type TestCase = {
-  input: unknown[];
-  output: unknown;
-};
-
-type ProblemData = {
-  uuid: string;
-  title: string;
-  statement: string;
-  hints: string | null;
-  examples: string | null;
-  test_cases: TestCase[] | null;
-  function_signature: string | null;
-  created_at: string;
-};
 
 type TestCaseRow = {
   input: string;
@@ -43,27 +31,15 @@ const emptyForm: FormData = {
 };
 
 function ProblemsPage() {
-  const [problems, setProblems] = useState<ProblemData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: problems, loading, refetch } = useFetch<Problem[]>(
+    "/api/v1/problems/",
+  );
 
   const [showModal, setShowModal] = useState(false);
   const [editingUuid, setEditingUuid] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
-
-  const fetchProblems = () => {
-    setLoading(true);
-    fetch("/api/v1/problems/")
-      .then((res) => res.json())
-      .then((data) => setProblems(data))
-      .catch(() => setProblems([]))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchProblems();
-  }, []);
 
   const openCreate = () => {
     setEditingUuid(null);
@@ -72,7 +48,7 @@ function ProblemsPage() {
     setShowModal(true);
   };
 
-  const openEdit = (p: ProblemData) => {
+  const openEdit = (p: Problem) => {
     setEditingUuid(p.uuid);
     setForm({
       title: p.title,
@@ -158,29 +134,37 @@ function ProblemsPage() {
       function_signature: form.functionSignature || null,
     };
 
-    if (editingUuid) {
-      await fetch(`/api/v1/problems/${editingUuid}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/v1/problems/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    }
+    try {
+      const res = editingUuid
+        ? await fetch(`/api/v1/problems/${editingUuid}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/v1/problems/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
 
-    setSaving(false);
-    closeModal();
-    fetchProblems();
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? `Error ${res.status}`);
+      }
+
+      closeModal();
+      refetch();
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Failed to save problem");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = async (p: ProblemData) => {
+  const handleDelete = async (p: Problem) => {
     if (!confirm(`Delete problem "${p.title}"?`)) return;
     await fetch(`/api/v1/problems/${p.uuid}`, { method: "DELETE" });
-    fetchProblems();
+    refetch();
   };
 
   const truncate = (s: string, max: number) =>
@@ -188,18 +172,20 @@ function ProblemsPage() {
 
   return (
     <div className="page">
-      <div className={styles.header}>
-        <h1>Problems</h1>
-        <button className="btn-primary" onClick={openCreate}>
-          Create Problem
-        </button>
-      </div>
+      <PageHeader
+        title="Problems"
+        action={
+          <button type="button" className="btn-primary" onClick={openCreate}>
+            Create Problem
+          </button>
+        }
+      />
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : problems.length === 0 ? (
-        <p>No problems yet.</p>
-      ) : (
+      <DataTable
+        loading={loading}
+        empty={!problems || problems.length === 0}
+        emptyMessage="No problems yet."
+      >
         <table>
           <thead>
             <tr>
@@ -211,16 +197,16 @@ function ProblemsPage() {
             </tr>
           </thead>
           <tbody>
-            {problems.map((p) => (
+            {(problems ?? []).map((p) => (
               <tr key={p.uuid}>
                 <td>{p.title}</td>
                 <td>{truncate(p.statement, 80)}</td>
                 <td>{p.test_cases ? p.test_cases.length : 0}</td>
                 <td>{new Date(p.created_at).toLocaleDateString()}</td>
                 <td>
-                  <div className={styles.cellActions}>
-                    <button onClick={() => openEdit(p)}>Edit</button>
-                    <button className="btn-danger" onClick={() => handleDelete(p)}>
+                  <div className="cellActions">
+                    <button type="button" onClick={() => openEdit(p)}>Edit</button>
+                    <button type="button" className="btn-danger" onClick={() => handleDelete(p)}>
                       Delete
                     </button>
                   </div>
@@ -229,7 +215,7 @@ function ProblemsPage() {
             ))}
           </tbody>
         </table>
-      )}
+      </DataTable>
 
       {showModal ? (
         <div className="overlay">

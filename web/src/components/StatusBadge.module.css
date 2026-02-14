@@ -1,0 +1,39 @@
+.badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badgePending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
+}
+
+.badgeProcessing {
+  background: var(--status-processing-bg);
+  color: var(--status-processing-text);
+}
+
+.badgeDone {
+  background: var(--status-done-bg);
+  color: var(--status-done-text);
+}
+
+.badgeFailed {
+  background: var(--status-failed-bg);
+  color: var(--status-failed-text);
+}
+
+.badgeQueued {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
+}
+
+.badgeRunnerDone {
+  background: var(--status-processing-bg);
+  color: var(--status-processing-text);
+}

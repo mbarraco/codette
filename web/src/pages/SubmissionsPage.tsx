@@ -4,23 +4,11 @@ import { python } from "@codemirror/lang-python";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { linter, type Diagnostic } from "@codemirror/lint";
+import type { Submission, ProblemOption } from "../types/api";
+import { useFetch } from "../hooks/useFetch";
+import PageHeader from "../components/PageHeader";
+import DataTable from "../components/DataTable";
 import styles from "./SubmissionsPage.module.css";
-
-type SubmissionData = {
-  uuid: string;
-  artifact_uri: string;
-  problem_uuid: string;
-  created_at: string;
-  runs: { uuid: string; status: string }[];
-  queue_entries: unknown[];
-  evaluations: unknown[];
-};
-
-type ProblemOption = {
-  uuid: string;
-  title: string;
-  function_signature: string | null;
-};
 
 function CodeEditor({
   value,
@@ -123,9 +111,10 @@ function CodeEditor({
 }
 
 function SubmissionsPage() {
-  const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
-  const [problems, setProblems] = useState<ProblemOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: submissions, loading, refetch } = useFetch<Submission[]>(
+    "/api/v1/submissions/",
+  );
+  const { data: problems } = useFetch<ProblemOption[]>("/api/v1/problems/");
 
   const [showForm, setShowForm] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState("");
@@ -134,34 +123,12 @@ function SubmissionsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const problemNames: Record<string, string> = {};
-  for (const p of problems) {
+  for (const p of problems ?? []) {
     problemNames[p.uuid] = p.title;
   }
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [subsRes, probsRes] = await Promise.all([
-        fetch("/api/v1/submissions/"),
-        fetch("/api/v1/problems/"),
-      ]);
-      const subs = await subsRes.json();
-      const probs = await probsRes.json();
-      setProblems(probs);
-      setSubmissions(subs);
-    } catch {
-      setSubmissions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const selectedFunctionSignature = useMemo(() => {
-    if (!selectedProblem) return null;
+    if (!selectedProblem || !problems) return null;
     const p = problems.find((prob) => prob.uuid === selectedProblem);
     return p?.function_signature ?? null;
   }, [selectedProblem, problems]);
@@ -169,7 +136,7 @@ function SubmissionsPage() {
   const handleProblemChange = useCallback(
     (uuid: string) => {
       setSelectedProblem(uuid);
-      if (!uuid) {
+      if (!uuid || !problems) {
         setCode("");
         return;
       }
@@ -205,7 +172,7 @@ function SubmissionsPage() {
       setCode("");
       setSelectedProblem("");
       setShowForm(false);
-      fetchData();
+      refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Submission failed");
     } finally {
@@ -213,26 +180,28 @@ function SubmissionsPage() {
     }
   };
 
-  const handleDelete = async (s: SubmissionData) => {
+  const handleDelete = async (s: Submission) => {
     if (!confirm("Delete this submission?")) return;
     await fetch(`/api/v1/submissions/${s.uuid}`, { method: "DELETE" });
-    fetchData();
+    refetch();
   };
 
   return (
     <div className="page">
-      <div className={styles.header}>
-        <h1>Submissions</h1>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => setShowForm(!showForm)}
-        >
-          {showForm ? "Cancel" : "New Submission"}
-        </button>
-      </div>
+      <PageHeader
+        title="Submissions"
+        action={
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setShowForm(!showForm)}
+          >
+            {showForm ? "Cancel" : "New Submission"}
+          </button>
+        }
+      />
 
-      {showForm && (
+      {showForm ? (
         <form onSubmit={handleSubmit} className={styles.form}>
           <label>
             Problem
@@ -242,7 +211,7 @@ function SubmissionsPage() {
               required
             >
               <option value="">Select a problem...</option>
-              {problems.map((p) => (
+              {(problems ?? []).map((p) => (
                 <option key={p.uuid} value={p.uuid}>
                   {p.title}
                 </option>
@@ -259,19 +228,19 @@ function SubmissionsPage() {
             />
           </div>
 
-          {error && <p className={styles.error}>{error}</p>}
+          {error ? <p className={styles.error}>{error}</p> : null}
 
           <button type="submit" disabled={submitting || !code.trim()}>
             {submitting ? "Submitting..." : "Submit"}
           </button>
         </form>
-      )}
+      ) : null}
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : submissions.length === 0 ? (
-        <p>No submissions yet.</p>
-      ) : (
+      <DataTable
+        loading={loading}
+        empty={!submissions || submissions.length === 0}
+        emptyMessage="No submissions yet."
+      >
         <table>
           <thead>
             <tr>
@@ -283,15 +252,16 @@ function SubmissionsPage() {
             </tr>
           </thead>
           <tbody>
-            {submissions.map((s) => (
+            {(submissions ?? []).map((s) => (
               <tr key={s.uuid}>
                 <td>{problemNames[s.problem_uuid] ?? s.problem_uuid}</td>
                 <td>{s.artifact_uri}</td>
                 <td>{s.runs.length}</td>
                 <td>{new Date(s.created_at).toLocaleDateString()}</td>
                 <td>
-                  <div className={styles.cellActions}>
+                  <div className="cellActions">
                     <button
+                      type="button"
                       className="btn-danger"
                       onClick={() => handleDelete(s)}
                     >
@@ -303,7 +273,7 @@ function SubmissionsPage() {
             ))}
           </tbody>
         </table>
-      )}
+      </DataTable>
     </div>
   );
 }

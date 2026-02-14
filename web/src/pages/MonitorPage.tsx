@@ -1,47 +1,12 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import type { QueueEntry, RunEntry } from "../types/api";
+import { truncateUuid } from "../utils/format";
+import { useFetch } from "../hooks/useFetch";
+import StatusBadge from "../components/StatusBadge";
+import CopyButton from "../components/CopyButton";
+import DataTable from "../components/DataTable";
 import styles from "./MonitorPage.module.css";
-
-type RunSummary = {
-  uuid: string;
-  status: string;
-  execution_ref: string | null;
-  failure_stage: string | null;
-  failure_error: string | null;
-  runner_output_uri: string | null;
-  grader_output_uri: string | null;
-  created_at: string;
-};
-
-type EvaluationSummary = {
-  uuid: string;
-  success: boolean;
-  created_at: string;
-};
-
-type QueueEntry = {
-  uuid: string;
-  submission_uuid: string;
-  problem_uuid: string;
-  attempt_count: number;
-  last_checked_at: string | null;
-  last_error: string | null;
-  created_at: string;
-  runs: RunSummary[];
-  evaluations: EvaluationSummary[];
-};
-
-type RunEntry = {
-  uuid: string;
-  submission_uuid: string;
-  status: string;
-  execution_ref: string | null;
-  failure_stage: string | null;
-  failure_error: string | null;
-  runner_output_uri: string | null;
-  grader_output_uri: string | null;
-  created_at: string;
-};
 
 function deriveQueueStatus(entry: QueueEntry): string {
   if (entry.evaluations.some((e) => e.success)) return "done";
@@ -50,46 +15,42 @@ function deriveQueueStatus(entry: QueueEntry): string {
   return "pending";
 }
 
-function queueBadgeClass(status: string): string {
-  switch (status) {
-    case "done":
-      return styles.badgeDone;
-    case "failed":
-      return styles.badgeFailed;
-    case "processing":
-      return styles.badgeProcessing;
-    default:
-      return styles.badgePending;
-  }
-}
-
-function runBadgeClass(status: string): string {
-  switch (status) {
-    case "done":
-      return styles.badgeDone;
-    case "failed":
-      return styles.badgeFailed;
-    case "runner_done":
-      return styles.badgeRunnerDone;
-    default:
-      return styles.badgeQueued;
-  }
-}
-
-function truncateUuid(uuid: string): string {
-  return uuid.slice(0, 8);
-}
-
 type ProblemMap = Record<string, string>;
 
+type ProblemListItem = {
+  uuid: string;
+  title: string;
+};
+
 function MonitorPage() {
-  const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
-  const [runs, setRuns] = useState<RunEntry[]>([]);
-  const [problemNames, setProblemNames] = useState<ProblemMap>({});
+  const { data: queueEntries, loading: queueLoading } = useFetch<QueueEntry[]>(
+    "/api/v1/queue/",
+    { pollingInterval: 5000 },
+  );
+  const { data: runs, loading: runsLoading } = useFetch<RunEntry[]>(
+    "/api/v1/runs/",
+    { pollingInterval: 5000 },
+  );
+  const { data: problemsList } = useFetch<ProblemListItem[]>(
+    "/api/v1/problems/",
+    { pollingInterval: 5000 },
+  );
+
   const [expandedQueueIds, setExpandedQueueIds] = useState<Set<string>>(new Set());
   const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(new Set());
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const [problemNames, setProblemNames] = useState<ProblemMap>({});
+
+  useEffect(() => {
+    if (!problemsList) return;
+    const map: ProblemMap = {};
+    for (const prob of problemsList) {
+      map[prob.uuid] = prob.title;
+    }
+    setProblemNames(map);
+  }, [problemsList]);
+
+  const loading = queueLoading || runsLoading;
 
   const toggleQueueDetail = (uuid: string) => {
     setExpandedQueueIds((prev) => {
@@ -115,75 +76,19 @@ function MonitorPage() {
     });
   };
 
-  const fetchData = async () => {
-    try {
-      const [qRes, rRes, pRes] = await Promise.all([
-        fetch("/api/v1/queue/"),
-        fetch("/api/v1/runs/"),
-        fetch("/api/v1/problems/"),
-      ]);
-      const q = await qRes.json();
-      const r = await rRes.json();
-      const p = await pRes.json();
-      const map: ProblemMap = {};
-      for (const prob of p) {
-        map[prob.uuid] = prob.title;
-      }
-      setQueueEntries(q);
-      setRuns(r);
-      setProblemNames(map);
-    } catch {
-      setQueueEntries([]);
-      setRuns([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copyText = async (value: string | null, key: string) => {
-    if (value == null) return;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(value);
-      } else {
-        const el = document.createElement("textarea");
-        el.value = value;
-        el.style.position = "fixed";
-        el.style.left = "-9999px";
-        document.body.appendChild(el);
-        el.focus();
-        el.select();
-        document.execCommand("copy");
-        document.body.removeChild(el);
-      }
-      setCopiedKey(key);
-      window.setTimeout(() => {
-        setCopiedKey((prev) => (prev === key ? null : prev));
-      }, 1200);
-    } catch {
-      setCopiedKey(null);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <div className="page">
       <h1>Monitor</h1>
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
+      <DataTable loading={loading} empty={false}>
         <>
           <div className={styles.section}>
             <h2>Queue</h2>
-            {queueEntries.length === 0 ? (
-              <p>No queue entries.</p>
-            ) : (
+            <DataTable
+              loading={false}
+              empty={!queueEntries || queueEntries.length === 0}
+              emptyMessage="No queue entries."
+            >
               <table className={styles.monitorTable}>
                 <thead>
                   <tr>
@@ -197,7 +102,7 @@ function MonitorPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {queueEntries.map((e) => {
+                  {(queueEntries ?? []).map((e) => {
                     const status = deriveQueueStatus(e);
                     const expanded = expandedQueueIds.has(e.uuid);
                     return (
@@ -214,11 +119,7 @@ function MonitorPage() {
                             </Link>
                           </td>
                           <td>
-                            <span
-                              className={`${styles.badge} ${queueBadgeClass(status)}`}
-                            >
-                              {status}
-                            </span>
+                            <StatusBadge status={status} variant="queue" />
                           </td>
                           <td>{e.attempt_count}</td>
                           <td
@@ -246,23 +147,7 @@ function MonitorPage() {
                               <div className={styles.detailsMeta}>
                                 <strong>Error</strong>
                                 {e.last_error ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className={styles.copyButton}
-                                      onClick={() =>
-                                        copyText(
-                                          e.last_error,
-                                          `queue:${e.uuid}`,
-                                        )
-                                      }
-                                    >
-                                      Copy
-                                    </button>
-                                    {copiedKey === `queue:${e.uuid}` ? (
-                                      <span className={styles.copiedTag}>Copied</span>
-                                    ) : null}
-                                  </>
+                                  <CopyButton text={e.last_error} />
                                 ) : null}
                               </div>
                               <div className={styles.errorBox}>
@@ -279,14 +164,16 @@ function MonitorPage() {
                   })}
                 </tbody>
               </table>
-            )}
+            </DataTable>
           </div>
 
           <div className={styles.section}>
             <h2>Runs</h2>
-            {runs.length === 0 ? (
-              <p>No runs yet.</p>
-            ) : (
+            <DataTable
+              loading={false}
+              empty={!runs || runs.length === 0}
+              emptyMessage="No runs yet."
+            >
               <table className={styles.monitorTable}>
                 <thead>
                   <tr>
@@ -301,7 +188,7 @@ function MonitorPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {runs.map((r) => {
+                  {(runs ?? []).map((r) => {
                     const expanded = expandedRunIds.has(r.uuid);
                     return (
                       <Fragment key={r.uuid}>
@@ -313,11 +200,7 @@ function MonitorPage() {
                             </Link>
                           </td>
                           <td>
-                            <span
-                              className={`${styles.badge} ${runBadgeClass(r.status)}`}
-                            >
-                              {r.status}
-                            </span>
+                            <StatusBadge status={r.status} variant="run" />
                           </td>
                           <td className={styles.mono}>{r.execution_ref ?? "-"}</td>
                           <td>{r.failure_stage ?? "-"}</td>
@@ -341,23 +224,7 @@ function MonitorPage() {
                               <div className={styles.detailsMeta}>
                                 <strong>Error</strong>
                                 {r.failure_error ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className={styles.copyButton}
-                                      onClick={() =>
-                                        copyText(
-                                          r.failure_error,
-                                          `run:${r.uuid}`,
-                                        )
-                                      }
-                                    >
-                                      Copy
-                                    </button>
-                                    {copiedKey === `run:${r.uuid}` ? (
-                                      <span className={styles.copiedTag}>Copied</span>
-                                    ) : null}
-                                  </>
+                                  <CopyButton text={r.failure_error} />
                                 ) : null}
                               </div>
                               <div className={styles.errorBox}>
@@ -374,10 +241,10 @@ function MonitorPage() {
                   })}
                 </tbody>
               </table>
-            )}
+            </DataTable>
           </div>
         </>
-      )}
+      </DataTable>
     </div>
   );
 }

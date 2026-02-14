@@ -3,10 +3,10 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom";
 import "./index.css";
 import App from "./App.tsx";
-import ProblemPage from "./ProblemPage.tsx";
-import ProblemsPage from "./ProblemsPage.tsx";
-import MonitorPage from "./MonitorPage.tsx";
-import SubmissionsPage from "./SubmissionsPage.tsx";
+import ProblemPage from "./pages/ProblemPage.tsx";
+import ProblemsPage from "./pages/ProblemsPage.tsx";
+import MonitorPage from "./pages/MonitorPage.tsx";
+import SubmissionsPage from "./pages/SubmissionsPage.tsx";
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
