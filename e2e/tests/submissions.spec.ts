@@ -27,7 +27,7 @@ test.describe("Submission CRUD", () => {
     // 2. Create a problem via API
     const problemRes = await request.post("/api/v1/problems/", {
       data: {
-        title: "Two Sum",
+        title: "Add Numbers",
         statement: "Return the sum of two integers.",
       },
     });
@@ -43,7 +43,7 @@ test.describe("Submission CRUD", () => {
 
     // 4. Refresh and verify row appears
     await page.reload();
-    const row = page.getByRole("row").filter({ hasText: "Two Sum" });
+    const row = page.getByRole("row").filter({ hasText: "Add Numbers" });
     await expect(row).toBeVisible();
 
     // 5. Delete the submission
@@ -52,5 +52,52 @@ test.describe("Submission CRUD", () => {
 
     // 6. Verify empty state returns
     await expect(page.getByText("No submissions yet.")).toBeVisible();
+  });
+
+  test("create submission via UI and verify queue entry on monitor", async ({
+    page,
+    request,
+  }) => {
+    // 1. Create a problem via API
+    const problemRes = await request.post("/api/v1/problems/", {
+      data: {
+        title: "FizzBuzz",
+        statement: "Return FizzBuzz sequence.",
+      },
+    });
+    const problem = await problemRes.json();
+
+    // 2. Navigate to submissions page and open the form
+    await page.goto("/submissions");
+    await page.getByRole("button", { name: "New Submission" }).click();
+
+    // 3. Fill in the form
+    await page.getByRole("combobox").selectOption({ label: "FizzBuzz" });
+    // CodeMirror renders a contenteditable div — click it and type
+    const editor = page.locator(".cm-content");
+    await editor.click();
+    await editor.fill("def fizzbuzz(n): return list(range(1, n+1))");
+
+    // 4. Submit
+    await page.getByRole("button", { name: "Submit" }).click();
+
+    // 5. Verify the submission appears in the list
+    await expect(
+      page.getByRole("row").filter({ hasText: "FizzBuzz" }),
+    ).toBeVisible();
+
+    // 6. Navigate to monitor page and verify a queue entry exists
+    await page.getByRole("link", { name: "Monitor" }).click();
+    await expect(page.getByRole("heading", { name: "Queue" })).toBeVisible();
+
+    const queueRow = page.getByRole("row").filter({ hasText: "FizzBuzz" });
+    await expect(queueRow).toBeVisible();
+
+    // 7. Verify the queue entry links back to the problem
+    const problemLink = queueRow.getByRole("link", { name: "FizzBuzz" });
+    await expect(problemLink).toHaveAttribute(
+      "href",
+      `/problem/${problem.uuid}`,
+    );
   });
 });

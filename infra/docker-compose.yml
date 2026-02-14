@@ -7,6 +7,7 @@ services:
     image: postgres:16
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ../scripts:/scripts:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -90,15 +91,50 @@ services:
     profiles:
       - test
 
+  api-e2e:
+    build:
+      context: ../backend
+      target: api
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://codette:codette@db:5432/codette_e2e
+      STORAGE_BUCKET: codette-e2e
+    command:
+      [
+        "sh",
+        "-c",
+        "python /app/scripts/dev/wait_for_dependencies.py && alembic upgrade head && exec uvicorn app.api.main:app --host 0.0.0.0 --port 8000",
+      ]
+    volumes:
+      - ../backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      gcs:
+        condition: service_started
+    profiles:
+      - e2e
+
+  web-e2e:
+    build:
+      context: ../web
+    environment:
+      VITE_PROXY_TARGET: http://api-e2e:8000
+    depends_on:
+      - api-e2e
+    profiles:
+      - e2e
+
   e2e:
     build:
       context: ../e2e
     environment:
-      BASE_URL: http://web:5173
+      BASE_URL: http://web-e2e:5173
     volumes:
       - ../e2e/results:/app/results
     depends_on:
-      - web
+      - web-e2e
     profiles:
       - e2e
 

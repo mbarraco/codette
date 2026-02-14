@@ -1,11 +1,12 @@
 COMPOSE := docker compose -f infra/docker-compose.yml
 TEST_DB_NAME ?= codette_test
+E2E_DB_NAME ?= codette_e2e
 
 .PHONY: setup up down build logs ps db-shell \
         up-api up-web up-worker \
         migrate seed restart clean setup-tests \
         test test-build test-shell \
-        e2e e2e-build
+        setup-e2e e2e e2e-build
 
 ## ---------- First-time setup ----------
 
@@ -63,8 +64,7 @@ seed: migrate ## Seed development data inside the API container (idempotent)
 
 setup-tests: .env ## Ensure test dependencies are up and test database exists
 	$(COMPOSE) up -d db gcs
-	$(COMPOSE) exec -T db sh -lc 'until pg_isready -U "$${POSTGRES_USER:-codette}" -d "$${POSTGRES_DB:-codette}" >/dev/null 2>&1; do sleep 1; done'
-	$(COMPOSE) exec -T db sh -lc 'if ! psql -U "$${POSTGRES_USER:-codette}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''$(TEST_DB_NAME)'\''" | grep -q 1; then psql -v ON_ERROR_STOP=1 -U "$${POSTGRES_USER:-codette}" -d postgres -c "CREATE DATABASE $(TEST_DB_NAME)"; fi'
+	$(COMPOSE) exec -T db sh -c '/scripts/wait-for-pg.sh && /scripts/ensure-db.sh $(TEST_DB_NAME)'
 
 test: setup-tests
 	$(COMPOSE) --profile test run --rm test
@@ -77,12 +77,15 @@ test-shell: ## Open a bash shell in the test container
 
 ## ---------- E2E tests ----------
 
-e2e: .env ## Run Playwright end-to-end tests in Docker
-	$(COMPOSE) up -d web
+setup-e2e: .env ## Reset e2e database (drop + recreate)
+	$(COMPOSE) --profile e2e stop api-e2e web-e2e 2>/dev/null || true
+	$(COMPOSE) up -d db gcs
+	$(COMPOSE) exec -T db sh -c '/scripts/wait-for-pg.sh && /scripts/reset-db.sh $(E2E_DB_NAME)'
+
+e2e: setup-e2e ## Run Playwright end-to-end tests in Docker
 	$(COMPOSE) --profile e2e run --rm e2e
 
-e2e-build: .env ## Rebuild e2e image, then run Playwright tests
-	$(COMPOSE) up -d web
+e2e-build: setup-e2e ## Rebuild e2e image, then run Playwright tests
 	$(COMPOSE) --profile e2e run --rm --build e2e
 
 ## ---------- Tool images ----------

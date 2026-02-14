@@ -7,6 +7,7 @@ export default defineConfig({
   outputDir: `${resultsDir}/artifacts`,
   timeout: 30_000,
   retries: 1,
+  workers: 1,
   use: {
     baseURL: process.env.BASE_URL ?? "http://web:5173",
     headless: true,

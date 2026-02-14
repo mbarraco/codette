@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
-    allowedHosts: ["web"],
+    allowedHosts: ["web", "web-e2e"],
     proxy: {
       "/api": {
         target: process.env.VITE_PROXY_TARGET ?? defaultProxyTarget,
