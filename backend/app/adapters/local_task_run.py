@@ -107,7 +107,7 @@ class LocalRunnerAdapter(_LocalContainerAdapter):
     container_label = "runner"
 
     def execute(self, request: RunnerRequest) -> ExecutionOutcome:
-        return self._run_container(request["run_uuid"], ["python", "run.py"])
+        return self._run_container(request["run_uuid"], ["python", "-m", "runner.run"])
 
 
 class LocalGraderAdapter(_LocalContainerAdapter):
@@ -119,4 +119,4 @@ class LocalGraderAdapter(_LocalContainerAdapter):
     container_label = "grader"
 
     def execute(self, request: GraderRequest) -> ExecutionOutcome:
-        return self._run_container(request["run_uuid"], ["python", "grade.py"])
+        return self._run_container(request["run_uuid"], ["python", "-m", "grader.run"])

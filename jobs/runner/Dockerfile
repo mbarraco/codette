@@ -5,12 +5,13 @@ RUN useradd --create-home --shell /bin/bash runner
 WORKDIR /home/runner
 
 # Install dependencies
-COPY requirements.txt .
+COPY runner/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY run.py harness.py ./
+# Copy application code as a package
+COPY errors.py ./
+COPY runner/__init__.py runner/run.py runner/harness.py runner/schemas.py ./runner/
 
 USER runner
 
-ENTRYPOINT ["python", "run.py"]
+ENTRYPOINT ["python", "-m", "runner.run"]

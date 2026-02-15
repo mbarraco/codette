@@ -1,7 +1,9 @@
 """Pytest configuration for jobs tests.
 
-Adds job source directories to sys.path and provides shared
-fixtures for GCS integration tests against fake-gcs-server.
+Adds the jobs root to sys.path so that runner and grader are importable
+as packages (e.g. ``from runner.run import _validate``).
+
+Provides shared fixtures for GCS integration tests against fake-gcs-server.
 """
 
 import sys
@@ -10,9 +12,7 @@ from pathlib import Path
 import pytest
 from google.cloud import storage as gcs
 
-_jobs_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(_jobs_dir / "runner"))
-sys.path.insert(0, str(_jobs_dir / "grader"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 _BUCKET_NAME = "codette-test"
 

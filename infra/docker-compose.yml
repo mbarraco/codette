@@ -165,13 +165,15 @@ services:
 
   runner:
     build:
-      context: ../jobs/runner
+      context: ../jobs
+      dockerfile: runner/Dockerfile
     profiles:
       - tools
 
   grader:
     build:
-      context: ../jobs/grader
+      context: ../jobs
+      dockerfile: grader/Dockerfile
     profiles:
       - tools
 

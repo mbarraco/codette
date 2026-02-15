@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from google.cloud import storage as gcs
-
-from run import (
+from pydantic import ValidationError
+from runner.run import (
     _download_request,
     _download_submission_files,
     _prepare_harness_input,
@@ -18,7 +18,11 @@ from run import (
     _upload_result,
     _validate,
     _validate_artifact_uri,
+    main,
 )
+from runner.schemas import RunnerRequest
+
+from errors import JobErrorCode
 
 
 # --- _validate ---
@@ -34,6 +38,41 @@ def test_validate_exits_when_no_args(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(SystemExit) as exc_info:
         _validate()
     assert exc_info.value.code == 1
+
+
+@patch("runner.run._upload_error")
+@patch("runner.run._download_submission_files")
+@patch("runner.run._validate_artifact_uri")
+@patch("runner.run._download_request")
+@patch("runner.run._get_bucket")
+@patch("runner.run._validate")
+def test_main_exits_when_required_submission_file_is_missing(
+    mock_validate: MagicMock,
+    mock_get_bucket: MagicMock,
+    mock_download_request: MagicMock,
+    mock_validate_artifact_uri: MagicMock,
+    mock_download_submission_files: MagicMock,
+    mock_upload_error: MagicMock,
+) -> None:
+    mock_validate.return_value = "run-missing-file"
+    bucket = MagicMock()
+    bucket.name = "codette-test"
+    mock_get_bucket.return_value = bucket
+    mock_download_request.return_value = RunnerRequest(
+        submission_artifact_uri="gs://codette-test/submissions/s1/solution.py",
+        output_uri="gs://codette-test/runs/run-missing-file/runner_output.json",
+        timeout_s=30,
+    )
+    mock_validate_artifact_uri.return_value = "submissions/s1/solution.py"
+    mock_download_submission_files.side_effect = FileNotFoundError(
+        "Missing required submission file: submissions/s1/test_cases.json"
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 1
+    kwargs = mock_upload_error.call_args.kwargs
+    assert kwargs["error_code"] == JobErrorCode.FILE_NOT_FOUND
 
 
 # --- _validate_artifact_uri ---
@@ -72,6 +111,7 @@ def test_validate_artifact_uri_returns_none_and_uploads_error_on_bad_uri(
         gcs_bucket.blob("runs/bad-uri-test/output.json").download_as_text()
     )
     assert uploaded["status"] == "system_error"
+    assert uploaded["error"]["code"] == JobErrorCode.INVALID_ARTIFACT_URI
     assert "Bad artifact URI" in uploaded["stderr"]
 
 
@@ -89,7 +129,23 @@ def test_download_request_parses_json(gcs_bucket: gcs.Bucket) -> None:
     )
 
     result = _download_request(gcs_bucket, "dl-test")
-    assert result == expected
+    assert result.model_dump() == expected
+
+
+def test_download_request_raises_on_invalid_timeout(gcs_bucket: gcs.Bucket) -> None:
+    gcs_bucket.blob("runs/bad-timeout/runner_request.json").upload_from_string(
+        json.dumps(
+            {
+                "submission_artifact_uri": f"gs://{gcs_bucket.name}/submissions/dl-test/solution.py",
+                "output_uri": f"gs://{gcs_bucket.name}/runs/dl-test/output.json",
+                "timeout_s": 0,
+            }
+        ),
+        content_type="application/json",
+    )
+
+    with pytest.raises(ValidationError):
+        _download_request(gcs_bucket, "bad-timeout")
 
 
 # --- _download_submission_files ---
@@ -115,7 +171,7 @@ def test_download_submission_files_downloads_solution_and_test_cases(
             assert json.load(f) == [{"input": [1, 2], "expected": 3}]
 
 
-def test_download_submission_files_creates_empty_test_cases_when_missing(
+def test_download_submission_files_raises_when_test_cases_missing(
     gcs_bucket: gcs.Bucket,
 ) -> None:
     gcs_bucket.blob("submissions/no-tc/solution.py").upload_from_string(
@@ -123,10 +179,22 @@ def test_download_submission_files_creates_empty_test_cases_when_missing(
     )
 
     with tempfile.TemporaryDirectory() as work_dir:
-        _download_submission_files(gcs_bucket, "submissions/no-tc", work_dir)
+        with pytest.raises(FileNotFoundError) as exc_info:
+            _download_submission_files(gcs_bucket, "submissions/no-tc", work_dir)
+    assert "submissions/no-tc/test_cases.json" in str(exc_info.value)
 
-        with open(os.path.join(work_dir, "test_cases.json")) as f:
-            assert json.load(f) == []
+
+def test_download_submission_files_raises_when_solution_missing(
+    gcs_bucket: gcs.Bucket,
+) -> None:
+    gcs_bucket.blob("submissions/no-solution/test_cases.json").upload_from_string(
+        json.dumps([{"input": [1], "expected": 1}])
+    )
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        with pytest.raises(FileNotFoundError) as exc_info:
+            _download_submission_files(gcs_bucket, "submissions/no-solution", work_dir)
+    assert "submissions/no-solution/solution.py" in str(exc_info.value)
 
 
 # --- _prepare_harness_input ---
@@ -182,11 +250,20 @@ def test_prepare_harness_input_with_empty_list() -> None:
         assert data["function_signature"] is None
 
 
+def test_prepare_harness_input_raises_on_invalid_test_case_shape() -> None:
+    with tempfile.TemporaryDirectory() as work_dir:
+        with open(os.path.join(work_dir, "test_cases.json"), "w") as f:
+            json.dump({"test_cases": ["bad"]}, f)
+
+        with pytest.raises(ValidationError):
+            _prepare_harness_input(work_dir)
+
+
 # --- _run_harness ---
 
 
-@patch("run.subprocess.run")
-@patch("run.time.monotonic")
+@patch("runner.run.subprocess.run")
+@patch("runner.run.time.monotonic")
 def test_run_harness_returns_ok_on_success(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
@@ -202,8 +279,8 @@ def test_run_harness_returns_ok_on_success(
     assert result["duration_ms"] == 500
 
 
-@patch("run.subprocess.run")
-@patch("run.time.monotonic")
+@patch("runner.run.subprocess.run")
+@patch("runner.run.time.monotonic")
 def test_run_harness_returns_runtime_error_on_nonzero_exit(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
@@ -220,8 +297,8 @@ def test_run_harness_returns_runtime_error_on_nonzero_exit(
     assert result["duration_ms"] == 1000
 
 
-@patch("run.subprocess.run")
-@patch("run.time.monotonic")
+@patch("runner.run.subprocess.run")
+@patch("runner.run.time.monotonic")
 def test_run_harness_returns_timeout_on_timeout(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
@@ -240,8 +317,8 @@ def test_run_harness_returns_timeout_on_timeout(
     assert result["duration_ms"] == 30000
 
 
-@patch("run.subprocess.run")
-@patch("run.time.monotonic")
+@patch("runner.run.subprocess.run")
+@patch("runner.run.time.monotonic")
 def test_run_harness_handles_none_stdout_stderr_on_timeout(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
@@ -328,6 +405,7 @@ def test_upload_error_uploads_system_error(gcs_bucket: gcs.Bucket) -> None:
         output_uri,
         "err-test",
         "Something went wrong",
+        error_code=JobErrorCode.INTERNAL_ERROR,
     )
 
     uploaded = json.loads(
@@ -336,5 +414,7 @@ def test_upload_error_uploads_system_error(gcs_bucket: gcs.Bucket) -> None:
     assert uploaded["schema_version"] == "runner_output.v1"
     assert uploaded["status"] == "system_error"
     assert uploaded["stderr"] == "Something went wrong"
+    assert uploaded["error"]["code"] == JobErrorCode.INTERNAL_ERROR
+    assert uploaded["error"]["message"] == "Something went wrong"
     assert uploaded["exit_code"] == -1
     assert uploaded["duration_ms"] == 0
