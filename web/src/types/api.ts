@@ -20,14 +20,29 @@ export type ProblemOption = {
   function_signature: string | null;
 };
 
+export type QueueEntrySummary = {
+  uuid: string;
+  attempt_count: number;
+  last_checked_at: string | null;
+  last_error: string | null;
+  created_at: string;
+};
+
+export type EvaluationDetail = {
+  uuid: string;
+  success: boolean;
+  metadata_: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export type Submission = {
   uuid: string;
   artifact_uri: string;
   problem_uuid: string;
   created_at: string;
-  runs: { uuid: string; status: string }[];
-  queue_entries: unknown[];
-  evaluations: unknown[];
+  runs: RunSummary[];
+  queue_entries: QueueEntrySummary[];
+  evaluations: EvaluationDetail[];
 };
 
 export type SubmissionSummary = {

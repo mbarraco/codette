@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { QueueEntry, RunEntry } from "../types/api";
+import type { Submission, RunSummary, EvaluationDetail } from "../types/api";
 import { truncateUuid } from "../utils/format";
 import { useFetch } from "../hooks/useFetch";
 import StatusBadge from "../components/StatusBadge";
@@ -8,11 +8,41 @@ import CopyButton from "../components/CopyButton";
 import DataTable from "../components/DataTable";
 import styles from "./MonitorPage.module.css";
 
-function deriveQueueStatus(entry: QueueEntry): string {
-  if (entry.evaluations.some((e) => e.success)) return "done";
-  if (entry.last_error) return "failed";
-  if (entry.last_checked_at) return "processing";
-  return "pending";
+function deriveSubmissionStatus(s: Submission): string {
+  const latestEval = [...s.evaluations].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  )[0];
+  if (latestEval) {
+    return latestEval.success ? "passed" : "failed";
+  }
+
+  const latestRun = [...s.runs].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  )[0];
+  if (latestRun?.status === "failed") return "error";
+  if (latestRun?.status === "runner_done") return "grading";
+
+  const qe = s.queue_entries[0];
+  if (qe?.last_checked_at) return "running";
+  if (qe) return "queued";
+
+  return "submitted";
+}
+
+function runEmoji(run: RunSummary, evaluation: EvaluationDetail | undefined): string {
+  if (run.status === "failed") return "\u26a0\ufe0f";
+  if (evaluation) {
+    return evaluation.success ? "\u2705" : "\u274c";
+  }
+  if (run.status === "runner_done" || run.status === "done") return "\u23f3";
+  return "\u25cb";
+}
+
+function runEmojiLabel(run: RunSummary, evaluation: EvaluationDetail | undefined): string {
+  if (run.status === "failed") return "error";
+  if (evaluation) return evaluation.success ? "passed" : "failed";
+  if (run.status === "runner_done" || run.status === "done") return "grading";
+  return run.status;
 }
 
 type ProblemMap = Record<string, string>;
@@ -23,12 +53,8 @@ type ProblemListItem = {
 };
 
 function MonitorPage() {
-  const { data: queueEntries, loading: queueLoading } = useFetch<QueueEntry[]>(
-    "/api/v1/queue/",
-    { pollingInterval: 5000 },
-  );
-  const { data: runs, loading: runsLoading } = useFetch<RunEntry[]>(
-    "/api/v1/runs/",
+  const { data: submissions, loading } = useFetch<Submission[]>(
+    "/api/v1/submissions/",
     { pollingInterval: 5000 },
   );
   const { data: problemsList } = useFetch<ProblemListItem[]>(
@@ -36,9 +62,7 @@ function MonitorPage() {
     { pollingInterval: 5000 },
   );
 
-  const [expandedQueueIds, setExpandedQueueIds] = useState<Set<string>>(new Set());
-  const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(new Set());
-
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [problemNames, setProblemNames] = useState<ProblemMap>({});
 
   useEffect(() => {
@@ -50,200 +74,151 @@ function MonitorPage() {
     setProblemNames(map);
   }, [problemsList]);
 
-  const loading = queueLoading || runsLoading;
-
-  const toggleQueueDetail = (uuid: string) => {
-    setExpandedQueueIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(uuid)) {
-        next.delete(uuid);
-      } else {
-        next.add(uuid);
-      }
-      return next;
-    });
-  };
-
-  const toggleRunDetail = (uuid: string) => {
-    setExpandedRunIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(uuid)) {
-        next.delete(uuid);
-      } else {
-        next.add(uuid);
-      }
-      return next;
-    });
+  const toggleRun = (uuid: string) => {
+    setExpandedRunId((prev) => (prev === uuid ? null : uuid));
   };
 
   return (
     <div className="page">
       <h1>Monitor</h1>
 
-      <DataTable loading={loading} empty={false}>
-        <>
-          <div className={styles.section}>
-            <h2>Queue</h2>
-            <DataTable
-              loading={false}
-              empty={!queueEntries || queueEntries.length === 0}
-              emptyMessage="No queue entries."
-            >
-              <table className={styles.monitorTable}>
-                <thead>
-                  <tr>
-                    <th>Submission</th>
-                    <th>Problem</th>
-                    <th>Status</th>
-                    <th>Attempts</th>
-                    <th>Last Error</th>
-                    <th>Queued At</th>
-                    <th>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(queueEntries ?? []).map((e) => {
-                    const status = deriveQueueStatus(e);
-                    const expanded = expandedQueueIds.has(e.uuid);
-                    return (
-                      <Fragment key={e.uuid}>
-                        <tr>
-                          <td className={styles.mono}>
-                            <Link to={`/submissions`}>
-                              {truncateUuid(e.submission_uuid)}
-                            </Link>
-                          </td>
-                          <td>
-                            <Link to={`/problem/${e.problem_uuid}`}>
-                              {problemNames[e.problem_uuid] ?? truncateUuid(e.problem_uuid)}
-                            </Link>
-                          </td>
-                          <td>
-                            <StatusBadge status={status} variant="queue" />
-                          </td>
-                          <td>{e.attempt_count}</td>
-                          <td
-                            className={styles.truncate}
-                            title={e.last_error ?? ""}
-                          >
-                            {e.last_error ?? "-"}
-                          </td>
-                          <td>
-                            {new Date(e.created_at).toLocaleString()}
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className={styles.detailsButton}
-                              onClick={() => toggleQueueDetail(e.uuid)}
-                            >
-                              {expanded ? "Hide" : "View"}
-                            </button>
-                          </td>
-                        </tr>
-                        {expanded ? (
-                          <tr className={styles.detailsRow}>
-                            <td className={styles.detailsCell} colSpan={7}>
-                              <div className={styles.detailsMeta}>
-                                <strong>Error</strong>
-                                {e.last_error ? (
-                                  <CopyButton text={e.last_error} />
-                                ) : null}
-                              </div>
-                              <div className={styles.errorBox}>
-                                {e.last_error ?? "-"}
-                              </div>
-                              <pre className={styles.detailsPre}>
-                                {JSON.stringify(e, null, 2)}
-                              </pre>
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </DataTable>
-          </div>
+      <DataTable
+        loading={loading}
+        empty={!submissions || submissions.length === 0}
+        emptyMessage="No submissions yet."
+      >
+        <table className={styles.monitorTable}>
+          <thead>
+            <tr>
+              <th>Problem</th>
+              <th>Status</th>
+              <th>Runs</th>
+              <th>Attempts</th>
+              <th>Last Error</th>
+              <th>Submitted At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(submissions ?? []).map((s) => {
+              const status = deriveSubmissionStatus(s);
+              const qe = s.queue_entries[0];
+              const sortedRuns = [...s.runs].sort((a, b) =>
+                a.created_at.localeCompare(b.created_at),
+              );
+              const sortedEvals = [...s.evaluations].sort((a, b) =>
+                a.created_at.localeCompare(b.created_at),
+              );
+              const evalByRunIndex = new Map<number, EvaluationDetail>();
+              sortedEvals.forEach((ev, i) => evalByRunIndex.set(i, ev));
+              const expandedRun = sortedRuns.find(
+                (r) => r.uuid === expandedRunId,
+              );
+              const expandedRunIndex = expandedRun
+                ? sortedRuns.indexOf(expandedRun)
+                : -1;
+              const expandedRunEval = expandedRunIndex >= 0
+                ? evalByRunIndex.get(expandedRunIndex)
+                : undefined;
 
-          <div className={styles.section}>
-            <h2>Runs</h2>
-            <DataTable
-              loading={false}
-              empty={!runs || runs.length === 0}
-              emptyMessage="No runs yet."
-            >
-              <table className={styles.monitorTable}>
-                <thead>
+              return (
+                <Fragment key={s.uuid}>
                   <tr>
-                    <th>Run</th>
-                    <th>Submission</th>
-                    <th>Status</th>
-                    <th>Execution Ref</th>
-                    <th>Failed At</th>
-                    <th>Last Error</th>
-                    <th>Created At</th>
-                    <th>Details</th>
+                    <td>
+                      <Link to={`/problem/${s.problem_uuid}`}>
+                        {problemNames[s.problem_uuid] ??
+                          truncateUuid(s.problem_uuid)}
+                      </Link>
+                    </td>
+                    <td>
+                      <StatusBadge status={status} variant="submission" />
+                    </td>
+                    <td>
+                      <div className={styles.runsCell}>
+                        {sortedRuns.length > 0
+                          ? sortedRuns.map((r, i) => {
+                              const ev = evalByRunIndex.get(i);
+                              const label = runEmojiLabel(r, ev);
+                              return (
+                                <button
+                                  key={r.uuid}
+                                  type="button"
+                                  className={styles.runEmoji}
+                                  title={`${label} — ${truncateUuid(r.uuid)}`}
+                                  aria-label={`Run ${truncateUuid(r.uuid)}: ${label}`}
+                                  onClick={() => toggleRun(r.uuid)}
+                                >
+                                  {runEmoji(r, ev)}
+                                </button>
+                              );
+                            })
+                          : "-"}
+                      </div>
+                    </td>
+                    <td>{qe?.attempt_count ?? 0}</td>
+                    <td
+                      className={styles.truncate}
+                      title={qe?.last_error ?? ""}
+                    >
+                      {qe?.last_error ?? "-"}
+                    </td>
+                    <td>{new Date(s.created_at).toLocaleString()}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {(runs ?? []).map((r) => {
-                    const expanded = expandedRunIds.has(r.uuid);
-                    return (
-                      <Fragment key={r.uuid}>
-                        <tr>
-                          <td className={styles.mono}>{truncateUuid(r.uuid)}</td>
-                          <td className={styles.mono}>
-                            <Link to={`/submissions`}>
-                              {truncateUuid(r.submission_uuid)}
-                            </Link>
-                          </td>
-                          <td>
-                            <StatusBadge status={r.status} variant="run" />
-                          </td>
-                          <td className={styles.mono}>{r.execution_ref ?? "-"}</td>
-                          <td>{r.failure_stage ?? "-"}</td>
-                          <td className={styles.truncate} title={r.failure_error ?? ""}>
-                            {r.failure_error ?? "-"}
-                          </td>
-                          <td>{new Date(r.created_at).toLocaleString()}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className={styles.detailsButton}
-                              onClick={() => toggleRunDetail(r.uuid)}
-                            >
-                              {expanded ? "Hide" : "View"}
-                            </button>
-                          </td>
-                        </tr>
-                        {expanded ? (
-                          <tr className={styles.detailsRow}>
-                            <td className={styles.detailsCell} colSpan={8}>
-                              <div className={styles.detailsMeta}>
-                                <strong>Error</strong>
-                                {r.failure_error ? (
-                                  <CopyButton text={r.failure_error} />
-                                ) : null}
-                              </div>
-                              <div className={styles.errorBox}>
-                                {r.failure_error ?? "-"}
-                              </div>
-                              <pre className={styles.detailsPre}>
-                                {JSON.stringify(r, null, 2)}
-                              </pre>
-                            </td>
-                          </tr>
+                  {expandedRun ? (
+                    <tr className={styles.detailsRow}>
+                      <td className={styles.detailsCell} colSpan={6}>
+                        <div className={styles.detailsMeta}>
+                          <strong>
+                            Run {truncateUuid(expandedRun.uuid)}
+                          </strong>
+                          <StatusBadge
+                            status={expandedRun.status}
+                            variant="run"
+                          />
+                          {expandedRun.execution_ref ? (
+                            <span className={styles.mono}>
+                              ref: {expandedRun.execution_ref}
+                            </span>
+                          ) : null}
+                          <span>
+                            {new Date(
+                              expandedRun.created_at,
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+                        {expandedRun.failure_stage ? (
+                          <div className={styles.detailsMeta}>
+                            <strong>Failed at:</strong>{" "}
+                            {expandedRun.failure_stage}
+                          </div>
                         ) : null}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </DataTable>
-          </div>
-        </>
+                        {expandedRun.failure_error ? (
+                          <>
+                            <div className={styles.detailsMeta}>
+                              <strong>Error</strong>
+                              <CopyButton text={expandedRun.failure_error} />
+                            </div>
+                            <div className={styles.errorBox}>
+                              {expandedRun.failure_error}
+                            </div>
+                          </>
+                        ) : null}
+                        {expandedRunEval ? (
+                          <div className={styles.detailsMeta}>
+                            <strong>Evaluation:</strong>
+                            <StatusBadge
+                              status={expandedRunEval.success ? "passed" : "failed"}
+                              variant="submission"
+                            />
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       </DataTable>
     </div>
   );

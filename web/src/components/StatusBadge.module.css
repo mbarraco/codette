@@ -37,3 +37,8 @@
   background: var(--status-processing-bg);
   color: var(--status-processing-text);
 }
+
+.badgeSubmitted {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}

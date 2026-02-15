@@ -88,15 +88,15 @@ test.describe("Submission CRUD", () => {
       page.getByRole("row").filter({ hasText: "FizzBuzz" }),
     ).toBeVisible();
 
-    // 6. Navigate to monitor page and verify a queue entry exists
+    // 6. Navigate to monitor page and verify the submission appears
     await page.getByRole("link", { name: "Monitor" }).click();
-    await expect(page.getByRole("heading", { name: "Queue" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Monitor" })).toBeVisible();
 
-    const queueRow = page.getByRole("row").filter({ hasText: "FizzBuzz" });
-    await expect(queueRow).toBeVisible();
+    const monitorRow = page.getByRole("row").filter({ hasText: "FizzBuzz" });
+    await expect(monitorRow).toBeVisible();
 
-    // 7. Verify the queue entry links back to the problem
-    const problemLink = queueRow.getByRole("link", { name: "FizzBuzz" });
+    // 7. Verify the row links back to the problem
+    const problemLink = monitorRow.getByRole("link", { name: "FizzBuzz" });
     await expect(problemLink).toHaveAttribute(
       "href",
       `/problem/${problem.uuid}`,

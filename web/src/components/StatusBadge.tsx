@@ -2,10 +2,28 @@ import styles from "./StatusBadge.module.css";
 
 type StatusBadgeProps = {
   status: string;
-  variant?: "queue" | "run";
+  variant?: "queue" | "run" | "submission";
 };
 
-function badgeClass(status: string, variant: "queue" | "run"): string {
+function badgeClass(status: string, variant: "queue" | "run" | "submission"): string {
+  if (variant === "submission") {
+    switch (status) {
+      case "passed":
+        return styles.badgeDone;
+      case "failed":
+      case "error":
+        return styles.badgeFailed;
+      case "grading":
+      case "running":
+        return styles.badgeProcessing;
+      case "queued":
+        return styles.badgePending;
+      case "submitted":
+        return styles.badgeSubmitted;
+      default:
+        return styles.badgePending;
+    }
+  }
   if (variant === "run") {
     switch (status) {
       case "done":

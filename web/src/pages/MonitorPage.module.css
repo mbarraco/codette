@@ -3,10 +3,6 @@
   table-layout: fixed;
 }
 
-.section {
-  margin-bottom: 2.5rem;
-}
-
 .mono {
   font-family: monospace;
   font-size: 0.85rem;
@@ -19,17 +15,24 @@
   white-space: nowrap;
 }
 
-.detailsButton {
-  border: 1px solid var(--border-mid);
-  border-radius: 6px;
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  padding: 0.2rem 0.55rem;
-  font-size: 0.8rem;
-  cursor: pointer;
+.runsCell {
+  display: flex;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
-.detailsButton:hover {
+.runEmoji {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.1rem 0.15rem;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.runEmoji:hover {
   background: var(--bg-hover);
 }
 
@@ -65,20 +68,4 @@
   line-height: 1.35;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-.detailsPre {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  max-height: 14rem;
-  overflow: auto;
-  border: 1px solid var(--border-light);
-  border-radius: 6px;
-  background: var(--color-white);
-  padding: 0.75rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.78rem;
-  line-height: 1.35;
 }
