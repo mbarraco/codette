@@ -25,7 +25,8 @@
       "Bash(node -e:*)",
       "Bash(npx vite build:*)",
       "Bash(lsof:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(python3.12 -m pytest:*)"
     ]
   }
 }

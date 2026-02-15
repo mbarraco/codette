@@ -13,71 +13,122 @@ import subprocess
 import sys
 import tempfile
 import time
+from typing import Any
 
 from google.cloud import storage
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: run.py <RUN_UUID>", file=sys.stderr)
-        sys.exit(1)
-    run_uuid = sys.argv[1]
-    bucket_name = os.environ["STORAGE_BUCKET"]
+    run_uuid = _validate()
+    bucket = _get_bucket()
+    gcs_prefix = f"gs://{bucket.name}/"
 
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-
-    # 1. Download runner_request.json
-    request_path = f"runs/{run_uuid}/runner_request.json"
-    request_blob = bucket.blob(request_path)
-    request_data = json.loads(request_blob.download_as_text())
-
+    request_data = _download_request(bucket, run_uuid)
     submission_artifact_uri: str = request_data["submission_artifact_uri"]
     output_uri: str = request_data["output_uri"]
     timeout_s: int = request_data["timeout_s"]
 
-    # 2. Derive submission base path from artifact_uri
-    #    artifact_uri is gs://bucket/submissions/{uuid}/solution.py
-    prefix = f"gs://{bucket_name}/"
-    if not submission_artifact_uri.startswith(prefix):
-        _fail(
-            bucket, output_uri, run_uuid, f"Bad artifact URI: {submission_artifact_uri}"
-        )
+    artifact_path = _validate_artifact_uri(
+        bucket,
+        gcs_prefix,
+        output_uri,
+        run_uuid,
+        submission_artifact_uri,
+    )
+    if artifact_path is None:
         return
 
-    artifact_path = submission_artifact_uri[len(prefix) :]
-    submission_dir = artifact_path.rsplit("/", 1)[0]  # submissions/{uuid}
+    submission_dir = artifact_path.rsplit("/", 1)[0]
 
-    # 3. Download solution.py and test_cases.json into a work directory
     work_dir = tempfile.mkdtemp(prefix="runner_")
-    solution_local = os.path.join(work_dir, "solution.py")
-    test_cases_local = os.path.join(work_dir, "test_cases.json")
+    _download_submission_files(bucket, submission_dir, work_dir)
 
-    bucket.blob(f"{submission_dir}/solution.py").download_to_filename(solution_local)
+    harness_input_file, harness_output_file = _prepare_harness_input(work_dir)
+
+    result = _run_harness(harness_input_file, harness_output_file, timeout_s)
+
+    _upload_result(bucket, gcs_prefix, output_uri, run_uuid, result)
+
+
+def _validate_artifact_uri(
+    bucket: storage.Bucket,
+    gcs_prefix: str,
+    output_uri: str,
+    run_uuid: str,
+    submission_artifact_uri: str,
+) -> str | None:
+    """Validate the artifact URI and return the GCS object path, or None on failure."""
+    if not submission_artifact_uri.startswith(gcs_prefix):
+        _upload_error(
+            bucket,
+            gcs_prefix,
+            output_uri,
+            run_uuid,
+            f"Bad artifact URI: {submission_artifact_uri}",
+        )
+        return None
+    return submission_artifact_uri[len(gcs_prefix) :]
+
+
+def _validate() -> str:
+    if len(sys.argv) < 2:
+        print("Usage: run.py <RUN_UUID>", file=sys.stderr)
+        sys.exit(1)
+    run_uuid = sys.argv[1]
+    return run_uuid
+
+
+def _get_bucket() -> storage.Bucket:
+    bucket_name = os.environ["STORAGE_BUCKET"]
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    return bucket
+
+
+def _download_request(bucket: storage.Bucket, run_uuid: str) -> dict[str, Any]:
+    """Download and parse the runner_request.json from GCS."""
+    blob = bucket.blob(f"runs/{run_uuid}/runner_request.json")
+    return json.loads(blob.download_as_text())
+
+
+def _download_submission_files(
+    bucket: storage.Bucket, submission_dir: str, work_dir: str
+) -> None:
+    """Download solution.py and test_cases.json into the work directory."""
+    bucket.blob(f"{submission_dir}/solution.py").download_to_filename(
+        os.path.join(work_dir, "solution.py")
+    )
 
     test_cases_blob = bucket.blob(f"{submission_dir}/test_cases.json")
+    test_cases_path = os.path.join(work_dir, "test_cases.json")
     if test_cases_blob.exists():
-        test_cases_blob.download_to_filename(test_cases_local)
+        test_cases_blob.download_to_filename(test_cases_path)
     else:
-        # No test cases — write empty list
-        with open(test_cases_local, "w") as f:
-            json.dump([], f)
+        with open(test_cases_path, "w") as f:
+            json.dump({"test_cases": []}, f)
 
-    # 4. Prepare harness input
-    with open(test_cases_local) as f:
+
+def _prepare_harness_input(work_dir: str) -> tuple[str, str]:
+    """Parse test cases and write the harness input file.
+
+    Expects wrapped format {"function_signature": ..., "test_cases": [...]}.
+
+    Returns (harness_input_path, harness_output_path).
+    """
+    test_cases_path = os.path.join(work_dir, "test_cases.json")
+    with open(test_cases_path) as f:
         raw = json.load(f)
 
-    # Support both wrapped format {"function_signature": ..., "test_cases": [...]}
-    # and legacy bare list format [...]
-    if isinstance(raw, dict) and "test_cases" in raw:
-        test_cases = raw["test_cases"]
-        function_signature = raw.get("function_signature")
-    else:
-        test_cases = raw
-        function_signature = None
+    if not isinstance(raw, dict) or "test_cases" not in raw:
+        raise ValueError(
+            "test_cases.json must be an object containing a 'test_cases' key"
+        )
+
+    test_cases = raw["test_cases"]
+    function_signature = raw.get("function_signature")
 
     harness_input = {
-        "solution_path": solution_local,
+        "solution_path": os.path.join(work_dir, "solution.py"),
         "test_cases": test_cases,
         "function_signature": function_signature,
     }
@@ -88,57 +139,79 @@ def main() -> None:
     with open(harness_input_file, "w") as f:
         json.dump(harness_input, f)
 
-    # 5. Run harness as subprocess
+    return harness_input_file, harness_output_file
+
+
+def _run_harness(input_file: str, output_file: str, timeout_s: int) -> dict[str, Any]:
+    """Execute the harness subprocess and return raw result fields."""
     harness_script = os.path.join(os.path.dirname(__file__), "harness.py")
     start = time.monotonic()
 
     try:
         result = subprocess.run(
-            [sys.executable, harness_script, harness_input_file, harness_output_file],
+            [sys.executable, harness_script, input_file, output_file],
             capture_output=True,
             text=True,
             timeout=timeout_s,
         )
         duration_ms = int((time.monotonic() - start) * 1000)
-        status = "ok" if result.returncode == 0 else "runtime_error"
-        stdout = result.stdout
-        stderr = result.stderr
-        exit_code = result.returncode
+        return {
+            "status": "ok" if result.returncode == 0 else "runtime_error",
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "exit_code": result.returncode,
+            "duration_ms": duration_ms,
+        }
     except subprocess.TimeoutExpired as exc:
         duration_ms = int((time.monotonic() - start) * 1000)
-        status = "timeout"
-        stdout = exc.stdout or ""
-        stderr = exc.stderr or ""
-        exit_code = -1
+        return {
+            "status": "timeout",
+            "stdout": exc.stdout or "",
+            "stderr": exc.stderr or "",
+            "exit_code": -1,
+            "duration_ms": duration_ms,
+        }
 
-    # 6. Build RunnerOutput
+
+def _upload_result(
+    bucket: storage.Bucket,
+    gcs_prefix: str,
+    output_uri: str,
+    run_uuid: str,
+    result: dict[str, Any],
+) -> None:
+    """Build RunnerOutput and upload to the output URI."""
+    stdout = result["stdout"]
+    stderr = result["stderr"]
+
     runner_output = {
         "schema_version": "runner_output.v1",
         "run_uuid": run_uuid,
-        "status": status,
+        "status": result["status"],
         "stdout": stdout
         if isinstance(stdout, str)
         else stdout.decode(errors="replace"),
         "stderr": stderr
         if isinstance(stderr, str)
         else stderr.decode(errors="replace"),
-        "exit_code": exit_code,
-        "duration_ms": duration_ms,
+        "exit_code": result["exit_code"],
+        "duration_ms": result["duration_ms"],
     }
 
-    # 7. Upload to output_uri
-    output_path = output_uri[len(prefix) :]
+    output_path = output_uri[len(gcs_prefix) :]
     bucket.blob(output_path).upload_from_string(
         json.dumps(runner_output), content_type="application/json"
     )
 
-    print(f"Runner completed: status={status} duration_ms={duration_ms}")
 
-
-def _fail(bucket, output_uri: str, run_uuid: str, error: str) -> None:
+def _upload_error(
+    bucket: storage.Bucket,
+    gcs_prefix: str,
+    output_uri: str,
+    run_uuid: str,
+    error: str,
+) -> None:
     """Upload a system_error RunnerOutput."""
-    prefix = f"gs://{bucket.name}/"
-    output_path = output_uri[len(prefix) :]
     runner_output = {
         "schema_version": "runner_output.v1",
         "run_uuid": run_uuid,
@@ -148,6 +221,7 @@ def _fail(bucket, output_uri: str, run_uuid: str, error: str) -> None:
         "exit_code": -1,
         "duration_ms": 0,
     }
+    output_path = output_uri[len(gcs_prefix) :]
     bucket.blob(output_path).upload_from_string(
         json.dumps(runner_output), content_type="application/json"
     )
