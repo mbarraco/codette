@@ -3,7 +3,7 @@
 from typing import Any, Literal
 
 from errors import JobError
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RunnerRequest(BaseModel):
@@ -21,22 +21,11 @@ class TestCase(BaseModel):
     expected: Any = None
 
 
-class WrappedTestCasesConfig(BaseModel):
+class TestCasesConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     function_signature: str | None = None
     test_cases: list[TestCase] = Field(default_factory=list)
-
-
-_TEST_CASES_CONFIG_ADAPTER = TypeAdapter(WrappedTestCasesConfig | list[TestCase])
-
-
-def parse_test_cases_config(raw: Any) -> tuple[list[TestCase], str | None]:
-    """Validate accepted test-case config shapes and return normalized values."""
-    parsed = _TEST_CASES_CONFIG_ADAPTER.validate_python(raw)
-    if isinstance(parsed, list):
-        return parsed, None
-    return parsed.test_cases, parsed.function_signature
 
 
 class HarnessInput(BaseModel):
@@ -45,6 +34,24 @@ class HarnessInput(BaseModel):
     solution_path: str
     test_cases: list[TestCase]
     function_signature: str | None = None
+
+
+class HarnessTestCaseResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    input: list[Any]
+    expected: Any
+    actual: Any
+    stdout: str
+    error: str | None
+    passed: bool
+
+
+class HarnessOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    results: list[HarnessTestCaseResult] = Field(default_factory=list)
+    error: str | None = None
 
 
 class HarnessExecutionResult(BaseModel):

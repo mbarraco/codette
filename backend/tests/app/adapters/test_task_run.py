@@ -124,6 +124,11 @@ def test_local_runner_adapter_execute_post_returns_succeeded() -> None:
     assert call_kwargs["entrypoint"] == ["python", "-m", "runner.run"]
     assert call_kwargs["command"] == ["abc-123"]
     assert call_kwargs["name"] == "codette-runner-abc-123"
+    assert call_kwargs["cap_drop"] == ["ALL"]
+    assert call_kwargs["mem_limit"] == "256m"
+    assert call_kwargs["pids_limit"] == 64
+    assert call_kwargs["read_only"] is True
+    assert call_kwargs["tmpfs"] == {"/tmp": "size=64m"}
     mock_container.remove.assert_called_once_with(force=True)
 
 
@@ -151,6 +156,11 @@ def test_local_grader_adapter_execute_post_returns_succeeded() -> None:
     assert call_kwargs["entrypoint"] == ["python", "-m", "grader.run"]
     assert call_kwargs["command"] == ["abc-123"]
     assert call_kwargs["name"] == "codette-grader-abc-123"
+    assert call_kwargs["cap_drop"] == ["ALL"]
+    assert call_kwargs["mem_limit"] == "256m"
+    assert call_kwargs["pids_limit"] == 64
+    assert call_kwargs["read_only"] is True
+    assert call_kwargs["tmpfs"] == {"/tmp": "size=64m"}
     mock_container.remove.assert_called_once_with(force=True)
 
 

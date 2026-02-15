@@ -7,24 +7,90 @@ Environment variables:
     STORAGE_BUCKET  — GCS bucket name (set at deploy time)
 """
 
-import json
-import os
 import subprocess
 import sys
 import tempfile
 import time
+from os import environ
+from pathlib import Path
 from typing import Any
 
 from errors import JobErrorCode
 from google.cloud import storage
 from pydantic import ValidationError
+
 from .schemas import (
     HarnessExecutionResult,
     HarnessInput,
     RunnerOutput,
     RunnerRequest,
-    parse_test_cases_config,
+    TestCasesConfig,
 )
+
+
+class Harness:
+    """Prepares validated harness input and executes the harness subprocess."""
+
+    def __init__(self, work_dir: Path, timeout_s: int) -> None:
+        self._work_dir = work_dir
+        self._timeout_s = timeout_s
+
+    def run(self) -> HarnessExecutionResult:
+        """Prepare input from submission files and execute the harness."""
+        self._prepare_input()
+        return self._execute()
+
+    def _prepare_input(self) -> None:
+        """Parse test_cases.json into a validated HarnessInput and write it to disk."""
+        config = TestCasesConfig.model_validate_json(
+            (self._work_dir / "test_cases.json").read_bytes()
+        )
+
+        harness_input = HarnessInput(
+            solution_path=str(self._work_dir / "solution.py"),
+            test_cases=config.test_cases,
+            function_signature=config.function_signature,
+        )
+
+        self._input_file.write_text(harness_input.model_dump_json())
+
+    @property
+    def _input_file(self) -> Path:
+        return self._work_dir / "harness_input.json"
+
+    def _execute(self) -> HarnessExecutionResult:
+        """Execute the harness subprocess and return the validated result."""
+        start = time.monotonic()
+
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "runner.harness",
+                    str(self._input_file),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=self._timeout_s,
+            )
+            duration_ms = int((time.monotonic() - start) * 1000)
+            return HarnessExecutionResult(
+                status="ok" if result.returncode == 0 else "runtime_error",
+                stdout=result.stdout,
+                stderr=result.stderr,
+                exit_code=result.returncode,
+                duration_ms=duration_ms,
+            )
+        except subprocess.TimeoutExpired as exc:
+            duration_ms = int((time.monotonic() - start) * 1000)
+            return HarnessExecutionResult(
+                status="timeout",
+                stdout=exc.stdout or "",
+                stderr=exc.stderr or "",
+                exit_code=-1,
+                duration_ms=duration_ms,
+            )
 
 
 def main() -> None:
@@ -51,11 +117,11 @@ def main() -> None:
 
         submission_dir = artifact_path.rsplit("/", 1)[0]
 
-        work_dir = tempfile.mkdtemp(prefix="runner_")
+        work_dir = Path(tempfile.mkdtemp(prefix="runner_"))
         _download_submission_files(bucket, submission_dir, work_dir)
 
-        harness_input_file, harness_output_file = _prepare_harness_input(work_dir)
-        result = _run_harness(harness_input_file, harness_output_file, timeout_s)
+        harness = Harness(work_dir, timeout_s)
+        result = harness.run()
         _upload_result(bucket, gcs_prefix, output_uri, run_uuid, result)
     except FileNotFoundError as exc:
         _upload_error(
@@ -117,15 +183,13 @@ def _validate() -> str:
     if len(sys.argv) < 2:
         print("Usage: run.py <RUN_UUID>", file=sys.stderr)
         sys.exit(1)
-    run_uuid = sys.argv[1]
-    return run_uuid
+    return sys.argv[1]
 
 
 def _get_bucket() -> storage.Bucket:
-    bucket_name = os.environ["STORAGE_BUCKET"]
+    bucket_name = environ["STORAGE_BUCKET"]
     client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    return bucket
+    return client.bucket(bucket_name)
 
 
 def _download_request(bucket: storage.Bucket, run_uuid: str) -> RunnerRequest:
@@ -135,7 +199,7 @@ def _download_request(bucket: storage.Bucket, run_uuid: str) -> RunnerRequest:
 
 
 def _download_submission_files(
-    bucket: storage.Bucket, submission_dir: str, work_dir: str
+    bucket: storage.Bucket, submission_dir: str, work_dir: Path
 ) -> None:
     """Download required submission files into the work directory."""
     required_files = ("solution.py", "test_cases.json")
@@ -144,70 +208,7 @@ def _download_submission_files(
         blob = bucket.blob(blob_path)
         if not blob.exists():
             raise FileNotFoundError(f"Missing required submission file: {blob_path}")
-        blob.download_to_filename(os.path.join(work_dir, file_name))
-
-
-def _prepare_harness_input(work_dir: str) -> tuple[str, str]:
-    """Parse test cases and write the harness input file.
-
-    Accepts either wrapped format:
-    {"function_signature": ..., "test_cases": [...]}
-    Or legacy bare list format:
-    [{"input": ...}, ...]
-
-    Returns (harness_input_path, harness_output_path).
-    """
-    test_cases_path = os.path.join(work_dir, "test_cases.json")
-    with open(test_cases_path) as f:
-        raw = json.load(f)
-
-    test_cases, function_signature = parse_test_cases_config(raw)
-    harness_input = HarnessInput(
-        solution_path=os.path.join(work_dir, "solution.py"),
-        test_cases=test_cases,
-        function_signature=function_signature,
-    )
-
-    harness_input_file = os.path.join(work_dir, "harness_input.json")
-    harness_output_file = os.path.join(work_dir, "harness_output.json")
-
-    with open(harness_input_file, "w") as f:
-        f.write(harness_input.model_dump_json())
-
-    return harness_input_file, harness_output_file
-
-
-def _run_harness(input_file: str, output_file: str, timeout_s: int) -> dict[str, Any]:
-    """Execute the harness subprocess and return raw result fields."""
-    harness_script = os.path.join(os.path.dirname(__file__), "harness.py")
-    start = time.monotonic()
-
-    try:
-        result = subprocess.run(
-            [sys.executable, harness_script, input_file, output_file],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        duration_ms = int((time.monotonic() - start) * 1000)
-        execution = HarnessExecutionResult(
-            status="ok" if result.returncode == 0 else "runtime_error",
-            stdout=result.stdout,
-            stderr=result.stderr,
-            exit_code=result.returncode,
-            duration_ms=duration_ms,
-        )
-        return execution.model_dump(mode="python")
-    except subprocess.TimeoutExpired as exc:
-        duration_ms = int((time.monotonic() - start) * 1000)
-        execution = HarnessExecutionResult(
-            status="timeout",
-            stdout=exc.stdout or "",
-            stderr=exc.stderr or "",
-            exit_code=-1,
-            duration_ms=duration_ms,
-        )
-        return execution.model_dump(mode="python")
+        blob.download_to_filename(work_dir / file_name)
 
 
 def _upload_result(
@@ -215,10 +216,17 @@ def _upload_result(
     gcs_prefix: str,
     output_uri: str,
     run_uuid: str,
-    result: dict[str, Any],
+    result: HarnessExecutionResult,
 ) -> None:
-    """Build RunnerOutput and upload to the output URI."""
-    runner_output = RunnerOutput.model_validate({"run_uuid": run_uuid, **result})
+    """Build RunnerOutput from the harness result and upload to the output URI."""
+    runner_output = RunnerOutput(
+        run_uuid=run_uuid,
+        status=result.status,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        exit_code=result.exit_code,
+        duration_ms=result.duration_ms,
+    )
 
     output_path = output_uri[len(gcs_prefix) :]
     bucket.blob(output_path).upload_from_string(

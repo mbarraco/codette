@@ -1,26 +1,25 @@
 """Unit tests for the runner orchestrator (run.py)."""
 
 import json
-import os
 import subprocess
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from google.cloud import storage as gcs
 from pydantic import ValidationError
 from runner.run import (
+    Harness,
     _download_request,
     _download_submission_files,
-    _prepare_harness_input,
-    _run_harness,
     _upload_error,
     _upload_result,
     _validate,
     _validate_artifact_uri,
     main,
 )
-from runner.schemas import RunnerRequest
+from runner.schemas import HarnessExecutionResult, RunnerRequest
 
 from errors import JobErrorCode
 
@@ -158,17 +157,22 @@ def test_download_submission_files_downloads_solution_and_test_cases(
         "def add(a, b): return a + b"
     )
     gcs_bucket.blob("submissions/dl-files/test_cases.json").upload_from_string(
-        json.dumps([{"input": [1, 2], "expected": 3}])
+        json.dumps(
+            {
+                "function_signature": "def add(a, b):",
+                "test_cases": [{"input": [1, 2], "expected": 3}],
+            }
+        )
     )
 
-    with tempfile.TemporaryDirectory() as work_dir:
+    with tempfile.TemporaryDirectory() as tmp:
+        work_dir = Path(tmp)
         _download_submission_files(gcs_bucket, "submissions/dl-files", work_dir)
 
-        with open(os.path.join(work_dir, "solution.py")) as f:
-            assert "def add" in f.read()
+        assert "def add" in (work_dir / "solution.py").read_text()
 
-        with open(os.path.join(work_dir, "test_cases.json")) as f:
-            assert json.load(f) == [{"input": [1, 2], "expected": 3}]
+        data = json.loads((work_dir / "test_cases.json").read_text())
+        assert data["test_cases"] == [{"input": [1, 2], "expected": 3}]
 
 
 def test_download_submission_files_raises_when_test_cases_missing(
@@ -178,9 +182,9 @@ def test_download_submission_files_raises_when_test_cases_missing(
         "def noop(): pass"
     )
 
-    with tempfile.TemporaryDirectory() as work_dir:
+    with tempfile.TemporaryDirectory() as tmp:
         with pytest.raises(FileNotFoundError) as exc_info:
-            _download_submission_files(gcs_bucket, "submissions/no-tc", work_dir)
+            _download_submission_files(gcs_bucket, "submissions/no-tc", Path(tmp))
     assert "submissions/no-tc/test_cases.json" in str(exc_info.value)
 
 
@@ -188,100 +192,107 @@ def test_download_submission_files_raises_when_solution_missing(
     gcs_bucket: gcs.Bucket,
 ) -> None:
     gcs_bucket.blob("submissions/no-solution/test_cases.json").upload_from_string(
-        json.dumps([{"input": [1], "expected": 1}])
+        json.dumps(
+            {"function_signature": None, "test_cases": [{"input": [1], "expected": 1}]}
+        )
     )
 
-    with tempfile.TemporaryDirectory() as work_dir:
+    with tempfile.TemporaryDirectory() as tmp:
         with pytest.raises(FileNotFoundError) as exc_info:
-            _download_submission_files(gcs_bucket, "submissions/no-solution", work_dir)
+            _download_submission_files(gcs_bucket, "submissions/no-solution", Path(tmp))
     assert "submissions/no-solution/solution.py" in str(exc_info.value)
 
 
-# --- _prepare_harness_input ---
+# --- Harness._prepare_input ---
 
 
-def test_prepare_harness_input_with_wrapped_format() -> None:
-    with tempfile.TemporaryDirectory() as work_dir:
-        with open(os.path.join(work_dir, "test_cases.json"), "w") as f:
-            json.dump(
+def test_harness_prepare_input_parses_config() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        work_dir = Path(tmp)
+        (work_dir / "test_cases.json").write_text(
+            json.dumps(
                 {
                     "function_signature": "def add(a, b):",
                     "test_cases": [{"input": [1, 2], "expected": 3}],
-                },
-                f,
+                }
             )
+        )
 
-        input_file, output_file = _prepare_harness_input(work_dir)
+        harness = Harness(work_dir, timeout_s=30)
+        harness._prepare_input()
 
-        with open(input_file) as f:
-            data = json.load(f)
+        data = json.loads(harness._input_file.read_text())
 
         assert data["function_signature"] == "def add(a, b):"
         assert data["test_cases"] == [{"input": [1, 2], "expected": 3}]
-        assert data["solution_path"] == os.path.join(work_dir, "solution.py")
-        assert output_file == os.path.join(work_dir, "harness_output.json")
+        assert data["solution_path"] == str(work_dir / "solution.py")
 
 
-def test_prepare_harness_input_with_bare_list_format() -> None:
-    with tempfile.TemporaryDirectory() as work_dir:
-        with open(os.path.join(work_dir, "test_cases.json"), "w") as f:
-            json.dump([{"input": [5], "expected": 25}], f)
+def test_harness_prepare_input_with_empty_test_cases() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        work_dir = Path(tmp)
+        (work_dir / "test_cases.json").write_text(
+            json.dumps({"function_signature": None, "test_cases": []})
+        )
 
-        input_file, _ = _prepare_harness_input(work_dir)
+        harness = Harness(work_dir, timeout_s=30)
+        harness._prepare_input()
 
-        with open(input_file) as f:
-            data = json.load(f)
-
-        assert data["function_signature"] is None
-        assert data["test_cases"] == [{"input": [5], "expected": 25}]
-
-
-def test_prepare_harness_input_with_empty_list() -> None:
-    with tempfile.TemporaryDirectory() as work_dir:
-        with open(os.path.join(work_dir, "test_cases.json"), "w") as f:
-            json.dump([], f)
-
-        input_file, _ = _prepare_harness_input(work_dir)
-
-        with open(input_file) as f:
-            data = json.load(f)
+        data = json.loads(harness._input_file.read_text())
 
         assert data["test_cases"] == []
         assert data["function_signature"] is None
 
 
-def test_prepare_harness_input_raises_on_invalid_test_case_shape() -> None:
-    with tempfile.TemporaryDirectory() as work_dir:
-        with open(os.path.join(work_dir, "test_cases.json"), "w") as f:
-            json.dump({"test_cases": ["bad"]}, f)
+def test_harness_prepare_input_raises_on_invalid_test_case_shape() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        work_dir = Path(tmp)
+        (work_dir / "test_cases.json").write_text(json.dumps({"test_cases": ["bad"]}))
 
+        harness = Harness(work_dir, timeout_s=30)
         with pytest.raises(ValidationError):
-            _prepare_harness_input(work_dir)
+            harness._prepare_input()
 
 
-# --- _run_harness ---
+def test_harness_prepare_input_raises_on_bare_list() -> None:
+    """Legacy bare list format is no longer accepted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        work_dir = Path(tmp)
+        (work_dir / "test_cases.json").write_text(
+            json.dumps([{"input": [5], "expected": 25}])
+        )
+
+        harness = Harness(work_dir, timeout_s=30)
+        with pytest.raises(ValidationError):
+            harness._prepare_input()
+
+
+# --- Harness._execute ---
 
 
 @patch("runner.run.subprocess.run")
 @patch("runner.run.time.monotonic")
-def test_run_harness_returns_ok_on_success(
+def test_harness_execute_returns_ok_on_success(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
     mock_time.side_effect = [0.0, 0.5]
     mock_subprocess.return_value = MagicMock(returncode=0, stdout="output", stderr="")
 
-    result = _run_harness("/tmp/input.json", "/tmp/output.json", timeout_s=30)
+    with tempfile.TemporaryDirectory() as tmp:
+        harness = Harness(Path(tmp), timeout_s=30)
+        result = harness._execute()
 
-    assert result["status"] == "ok"
-    assert result["stdout"] == "output"
-    assert result["stderr"] == ""
-    assert result["exit_code"] == 0
-    assert result["duration_ms"] == 500
+    assert isinstance(result, HarnessExecutionResult)
+    assert result.status == "ok"
+    assert result.stdout == "output"
+    assert result.stderr == ""
+    assert result.exit_code == 0
+    assert result.duration_ms == 500
 
 
 @patch("runner.run.subprocess.run")
 @patch("runner.run.time.monotonic")
-def test_run_harness_returns_runtime_error_on_nonzero_exit(
+def test_harness_execute_returns_runtime_error_on_nonzero_exit(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
     mock_time.side_effect = [0.0, 1.0]
@@ -289,17 +300,19 @@ def test_run_harness_returns_runtime_error_on_nonzero_exit(
         returncode=1, stdout="", stderr="NameError: x"
     )
 
-    result = _run_harness("/tmp/input.json", "/tmp/output.json", timeout_s=30)
+    with tempfile.TemporaryDirectory() as tmp:
+        harness = Harness(Path(tmp), timeout_s=30)
+        result = harness._execute()
 
-    assert result["status"] == "runtime_error"
-    assert result["exit_code"] == 1
-    assert result["stderr"] == "NameError: x"
-    assert result["duration_ms"] == 1000
+    assert result.status == "runtime_error"
+    assert result.exit_code == 1
+    assert result.stderr == "NameError: x"
+    assert result.duration_ms == 1000
 
 
 @patch("runner.run.subprocess.run")
 @patch("runner.run.time.monotonic")
-def test_run_harness_returns_timeout_on_timeout(
+def test_harness_execute_returns_timeout_on_timeout(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
     mock_time.side_effect = [0.0, 30.0]
@@ -308,18 +321,20 @@ def test_run_harness_returns_timeout_on_timeout(
     exc.stderr = "err"
     mock_subprocess.side_effect = exc
 
-    result = _run_harness("/tmp/input.json", "/tmp/output.json", timeout_s=30)
+    with tempfile.TemporaryDirectory() as tmp:
+        harness = Harness(Path(tmp), timeout_s=30)
+        result = harness._execute()
 
-    assert result["status"] == "timeout"
-    assert result["exit_code"] == -1
-    assert result["stdout"] == "partial"
-    assert result["stderr"] == "err"
-    assert result["duration_ms"] == 30000
+    assert result.status == "timeout"
+    assert result.exit_code == -1
+    assert result.stdout == "partial"
+    assert result.stderr == "err"
+    assert result.duration_ms == 30000
 
 
 @patch("runner.run.subprocess.run")
 @patch("runner.run.time.monotonic")
-def test_run_harness_handles_none_stdout_stderr_on_timeout(
+def test_harness_execute_handles_none_stdout_stderr_on_timeout(
     mock_time: MagicMock, mock_subprocess: MagicMock
 ) -> None:
     mock_time.side_effect = [0.0, 5.0]
@@ -327,10 +342,12 @@ def test_run_harness_handles_none_stdout_stderr_on_timeout(
         cmd="python harness.py", timeout=5
     )
 
-    result = _run_harness("/tmp/input.json", "/tmp/output.json", timeout_s=5)
+    with tempfile.TemporaryDirectory() as tmp:
+        harness = Harness(Path(tmp), timeout_s=5)
+        result = harness._execute()
 
-    assert result["stdout"] == ""
-    assert result["stderr"] == ""
+    assert result.stdout == ""
+    assert result.stderr == ""
 
 
 # --- _upload_result ---
@@ -340,19 +357,14 @@ def test_upload_result_uploads_runner_output(gcs_bucket: gcs.Bucket) -> None:
     gcs_prefix = f"gs://{gcs_bucket.name}/"
     output_uri = f"{gcs_prefix}runs/upload-test/runner_output.json"
 
-    _upload_result(
-        gcs_bucket,
-        gcs_prefix,
-        output_uri,
-        "upload-test",
-        {
-            "status": "ok",
-            "stdout": "hello",
-            "stderr": "",
-            "exit_code": 0,
-            "duration_ms": 500,
-        },
+    result = HarnessExecutionResult(
+        status="ok",
+        stdout="hello",
+        stderr="",
+        exit_code=0,
+        duration_ms=500,
     )
+    _upload_result(gcs_bucket, gcs_prefix, output_uri, "upload-test", result)
 
     uploaded = json.loads(
         gcs_bucket.blob("runs/upload-test/runner_output.json").download_as_text()
@@ -363,33 +375,6 @@ def test_upload_result_uploads_runner_output(gcs_bucket: gcs.Bucket) -> None:
     assert uploaded["stdout"] == "hello"
     assert uploaded["exit_code"] == 0
     assert uploaded["duration_ms"] == 500
-
-
-def test_upload_result_decodes_bytes_stdout_stderr(
-    gcs_bucket: gcs.Bucket,
-) -> None:
-    gcs_prefix = f"gs://{gcs_bucket.name}/"
-    output_uri = f"{gcs_prefix}runs/bytes-test/output.json"
-
-    _upload_result(
-        gcs_bucket,
-        gcs_prefix,
-        output_uri,
-        "bytes-test",
-        {
-            "status": "ok",
-            "stdout": b"binary output",
-            "stderr": b"binary error",
-            "exit_code": 0,
-            "duration_ms": 100,
-        },
-    )
-
-    uploaded = json.loads(
-        gcs_bucket.blob("runs/bytes-test/output.json").download_as_text()
-    )
-    assert uploaded["stdout"] == "binary output"
-    assert uploaded["stderr"] == "binary error"
 
 
 # --- _upload_error ---

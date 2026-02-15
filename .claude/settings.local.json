@@ -26,7 +26,8 @@
       "Bash(npx vite build:*)",
       "Bash(lsof:*)",
       "Bash(npm run build:*)",
-      "Bash(python3.12 -m pytest:*)"
+      "Bash(python3.12 -m pytest:*)",
+      "Bash(docker image inspect:*)"
     ]
   }
 }

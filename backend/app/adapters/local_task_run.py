@@ -63,6 +63,11 @@ class _LocalContainerAdapter:
                 },
                 network=self._network,
                 detach=True,
+                cap_drop=["ALL"],
+                mem_limit="256m",
+                pids_limit=64,
+                read_only=True,
+                tmpfs={"/tmp": "size=64m"},
             )
         except Exception as exc:
             return ExecutionOutcome(

@@ -7,9 +7,8 @@ Environment variables:
     STORAGE_BUCKET  — GCS bucket name (set at deploy time)
 """
 
-import json
-import os
 import sys
+from os import environ
 from typing import Any
 
 from errors import JobErrorCode
@@ -69,7 +68,7 @@ def _validate() -> str:
 
 
 def _get_bucket() -> storage.Bucket:
-    bucket_name = os.environ["STORAGE_BUCKET"]
+    bucket_name = environ["STORAGE_BUCKET"]
     client = storage.Client()
     return client.bucket(bucket_name)
 
@@ -101,7 +100,7 @@ def _evaluate(runner_output: RunnerOutput) -> tuple[str, str]:
 
     try:
         harness = HarnessResult.model_validate_json(runner_output.stdout)
-    except (json.JSONDecodeError, ValueError):
+    except ValidationError:
         return "fail", "Failed to parse runner output"
 
     total = len(harness.results)

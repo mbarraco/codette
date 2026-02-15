@@ -1,30 +1,9 @@
 """Harness — executes submitted code in isolation.
 
-Usage: python harness.py <input_json> <output_json>
+Usage: python -m runner.harness <input_json>
 
-Input JSON format:
-    {
-        "solution_path": "/tmp/work/solution.py",
-        "test_cases": [
-            {"input": [1, 2], "expected": 3},
-            ...
-        ]
-    }
-
-Output JSON format:
-    {
-        "results": [
-            {
-                "input": [1, 2],
-                "expected": 3,
-                "actual": 3,
-                "stdout": "",
-                "error": null,
-                "passed": true
-            },
-            ...
-        ]
-    }
+Reads a HarnessInput JSON file, runs the solution against test cases,
+and prints HarnessOutput JSON to stdout.
 """
 
 import importlib.util
@@ -34,6 +13,8 @@ import json
 import re
 import sys
 import traceback
+
+from .schemas import HarnessInput, HarnessOutput, HarnessTestCaseResult
 
 
 def _load_solution(solution_path: str):
@@ -89,40 +70,39 @@ def _validate_signature(
     return None
 
 
-def main() -> None:
-    input_path = sys.argv[1]
-    output_path = sys.argv[2]
+def _serialize(value):
+    """Best-effort JSON-serializable conversion."""
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return repr(value)
 
-    with open(input_path) as f:
-        config = json.load(f)
 
-    solution_path = config["solution_path"]
-    test_cases = config["test_cases"]
-    function_signature = config.get("function_signature")
+def execute(harness_input: HarnessInput) -> HarnessOutput:
+    """Pure logic: load solution, validate signature, run test cases."""
+    try:
+        module = _load_solution(harness_input.solution_path)
+        func = _find_callable(module)
+    except Exception as exc:
+        return HarnessOutput(error=str(exc))
 
-    # Load solution module once
-    module = _load_solution(solution_path)
-    func = _find_callable(module)
-
-    # Validate function signature if provided
-    if function_signature:
+    if harness_input.function_signature:
         try:
-            expected_name, expected_params = _parse_signature(function_signature)
+            expected_name, expected_params = _parse_signature(
+                harness_input.function_signature
+            )
         except ValueError as e:
-            with open(output_path, "w") as f:
-                json.dump({"error": str(e), "results": []}, f)
-            return
+            return HarnessOutput(error=str(e))
 
         sig_error = _validate_signature(func, expected_name, expected_params)
         if sig_error:
-            with open(output_path, "w") as f:
-                json.dump({"error": sig_error, "results": []}, f)
-            return
+            return HarnessOutput(error=sig_error)
 
-    results = []
-    for tc in test_cases:
-        inputs = tc.get("input", [])
-        expected = tc.get("expected")
+    results: list[HarnessTestCaseResult] = []
+    for tc in harness_input.test_cases:
+        inputs = tc.input
+        expected = tc.expected
 
         captured_stdout = io.StringIO()
         old_stdout = sys.stdout
@@ -140,27 +120,24 @@ def main() -> None:
         passed = error is None and actual == expected
 
         results.append(
-            {
-                "input": inputs,
-                "expected": expected,
-                "actual": _serialize(actual),
-                "stdout": captured_stdout.getvalue(),
-                "error": error,
-                "passed": passed,
-            }
+            HarnessTestCaseResult(
+                input=inputs,
+                expected=expected,
+                actual=_serialize(actual),
+                stdout=captured_stdout.getvalue(),
+                error=error,
+                passed=passed,
+            )
         )
 
-    with open(output_path, "w") as f:
-        json.dump({"results": results}, f)
+    return HarnessOutput(results=results)
 
 
-def _serialize(value):
-    """Best-effort JSON-serializable conversion."""
-    try:
-        json.dumps(value)
-        return value
-    except (TypeError, ValueError):
-        return repr(value)
+def main() -> None:
+    from pathlib import Path
+
+    harness_input = HarnessInput.model_validate_json(Path(sys.argv[1]).read_bytes())
+    print(execute(harness_input).model_dump_json())
 
 
 if __name__ == "__main__":
