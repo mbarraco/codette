@@ -109,3 +109,42 @@ class StorageAdapter:
         settings = get_settings()                         # NEVER — accept bucket_name as arg
         self._bucket = storage.Client().bucket(settings.storage_bucket)
 ```
+
+## Port and Adapter Naming Rules
+- Ports are `Protocol` classes that define the interface the domain needs. They live in `backend/app/worker/contracts.py`.
+- Each port defines exactly one responsibility. If the domain needs "run code" and "grade code", those are two separate protocols (`RunnerAdapter`, `GraderAdapter`), not one combined protocol.
+- Adapter class names must end with the port name they implement: `Local` + `RunnerAdapter` = `LocalRunnerAdapter`, `Gcp` + `GraderAdapter` = `GcpGraderAdapter`.
+- Never implement multiple ports in a single class. If two adapters share infrastructure logic (e.g., Docker container lifecycle), extract a private base class and have each adapter extend it.
+- When multiple adapters share infrastructure code, use a private base class prefixed with underscore (e.g., `_LocalContainerAdapter`). The base class is an implementation detail — only the concrete adapter classes are part of the public API.
+
+### Correct — one port, one adapter
+```python
+# backend/app/worker/contracts.py (ports)
+class RunnerAdapter(Protocol):
+    def execute(self, request: RunnerRequest) -> ExecutionOutcome: ...
+
+class GraderAdapter(Protocol):
+    def execute(self, request: GraderRequest) -> ExecutionOutcome: ...
+
+# backend/app/adapters/local_runner.py (adapter)
+class LocalRunnerAdapter(_LocalContainerAdapter):
+    def execute(self, request: RunnerRequest) -> ExecutionOutcome: ...
+
+# backend/app/adapters/local_grader.py (adapter)
+class LocalGraderAdapter(_LocalContainerAdapter):
+    def execute(self, request: GraderRequest) -> ExecutionOutcome: ...
+```
+
+### Wrong — one class implementing two ports
+```python
+class LocalTaskRunAdapter:                                    # NEVER — name doesn't match any port
+    def execute(self, request: RunnerRequest | GraderRequest):  # NEVER — union type breaks protocol contract
+        if "runner_output_uri" in request:                      # NEVER — runtime branching on role
+            ...
+```
+
+### Wrong — adapter name doesn't end with the port name
+```python
+class GcpTaskRunner:       # NEVER — port is RunnerAdapter, so name must end with RunnerAdapter
+class LocalExecutor:       # NEVER — which port does this implement?
+```

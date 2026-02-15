@@ -1,11 +1,11 @@
-"""Unit tests for GcpTaskRunAdapter."""
+"""Unit tests for GCP and Local runner/grader adapters."""
 
 from unittest.mock import MagicMock, Mock, patch
 
 from google.cloud import run_v2
 
-from app.adapters.local_task_run import LocalTaskRunAdapter
-from app.adapters.task_run import GcpTaskRunAdapter
+from app.adapters.local_task_run import LocalGraderAdapter, LocalRunnerAdapter
+from app.adapters.task_run import GcpGraderAdapter, GcpRunnerAdapter
 from app.worker.contracts import ExecutionStatus, GraderRequest, RunnerRequest
 
 
@@ -48,25 +48,28 @@ def _make_grader_request() -> GraderRequest:
     )
 
 
+# --- GCP adapter tests ---
+
+
 @patch("app.adapters.task_run.run_v2.ExecutionsClient")
-def test_gcp_task_run_adapter_execute_succeeded(mock_client_cls: MagicMock) -> None:
+def test_gcp_runner_adapter_execute_post_returns_succeeded(
+    mock_client_cls: MagicMock,
+) -> None:
     mock_client = mock_client_cls.return_value
     execution = _make_execution(succeeded=True)
     mock_operation = MagicMock()
     mock_operation.result.return_value = execution
     mock_client.run_job.return_value = mock_operation
 
-    adapter = GcpTaskRunAdapter(
+    adapter = GcpRunnerAdapter(
         project="my-project", location="us-central1", job_name="codette-runner"
     )
-    request = _make_runner_request()
-    outcome = adapter.execute(request)
+    outcome = adapter.execute(_make_runner_request())
 
     assert outcome["status"] == ExecutionStatus.SUCCEEDED
     assert outcome["execution_ref"] == execution.name
     assert outcome["error"] is None
 
-    # Verify the job was called with correct args override
     call_args = mock_client.run_job.call_args
     run_job_req = call_args.kwargs["request"]
     args = run_job_req.overrides.container_overrides[0].args
@@ -74,18 +77,19 @@ def test_gcp_task_run_adapter_execute_succeeded(mock_client_cls: MagicMock) -> N
 
 
 @patch("app.adapters.task_run.run_v2.ExecutionsClient")
-def test_gcp_task_run_adapter_execute_failed(mock_client_cls: MagicMock) -> None:
+def test_gcp_grader_adapter_execute_post_returns_failed(
+    mock_client_cls: MagicMock,
+) -> None:
     mock_client = mock_client_cls.return_value
     execution = _make_execution(succeeded=False)
     mock_operation = MagicMock()
     mock_operation.result.return_value = execution
     mock_client.run_job.return_value = mock_operation
 
-    adapter = GcpTaskRunAdapter(
-        project="my-project", location="us-central1", job_name="codette-runner"
+    adapter = GcpGraderAdapter(
+        project="my-project", location="us-central1", job_name="codette-grader"
     )
-    request = _make_runner_request()
-    outcome = adapter.execute(request)
+    outcome = adapter.execute(_make_grader_request())
 
     assert outcome["status"] == ExecutionStatus.FAILED
     assert outcome["execution_ref"] == execution.name
@@ -93,14 +97,17 @@ def test_gcp_task_run_adapter_execute_failed(mock_client_cls: MagicMock) -> None
     assert "Container exited with code 1" in outcome["error"]
 
 
-def test_local_task_run_adapter_execute_runner_uses_run_py() -> None:
+# --- Local adapter tests ---
+
+
+def test_local_runner_adapter_execute_post_returns_succeeded() -> None:
     mock_client = Mock()
     mock_container = Mock()
     mock_container.wait.return_value = {"StatusCode": 0}
     mock_container.short_id = "runner123"
     mock_client.containers.run.return_value = mock_container
 
-    adapter = LocalTaskRunAdapter(
+    adapter = LocalRunnerAdapter(
         image_name="codette-runner",
         network="codette_default",
         storage_bucket="codette",
@@ -116,17 +123,18 @@ def test_local_task_run_adapter_execute_runner_uses_run_py() -> None:
     call_kwargs = mock_client.containers.run.call_args.kwargs
     assert call_kwargs["entrypoint"] == ["python", "run.py"]
     assert call_kwargs["command"] == ["abc-123"]
+    assert call_kwargs["name"] == "codette-runner-abc-123"
     mock_container.remove.assert_called_once_with(force=True)
 
 
-def test_local_task_run_adapter_execute_grader_uses_grade_py() -> None:
+def test_local_grader_adapter_execute_post_returns_succeeded() -> None:
     mock_client = Mock()
     mock_container = Mock()
     mock_container.wait.return_value = {"StatusCode": 0}
     mock_container.short_id = "grader123"
     mock_client.containers.run.return_value = mock_container
 
-    adapter = LocalTaskRunAdapter(
+    adapter = LocalGraderAdapter(
         image_name="codette-grader",
         network="codette_default",
         storage_bucket="codette",
@@ -142,23 +150,24 @@ def test_local_task_run_adapter_execute_grader_uses_grade_py() -> None:
     call_kwargs = mock_client.containers.run.call_args.kwargs
     assert call_kwargs["entrypoint"] == ["python", "grade.py"]
     assert call_kwargs["command"] == ["abc-123"]
+    assert call_kwargs["name"] == "codette-grader-abc-123"
     mock_container.remove.assert_called_once_with(force=True)
 
 
-def test_local_task_run_adapter_execute_returns_failed_when_launch_errors() -> None:
+def test_local_runner_adapter_execute_post_returns_failed_when_launch_errors() -> None:
     mock_client = Mock()
     mock_client.containers.run.side_effect = RuntimeError("boom")
 
-    adapter = LocalTaskRunAdapter(
-        image_name="codette-grader",
+    adapter = LocalRunnerAdapter(
+        image_name="codette-runner",
         network="codette_default",
         storage_bucket="codette",
         storage_emulator_host="http://gcs:4443",
         docker_client=mock_client,
     )
 
-    outcome = adapter.execute(_make_grader_request())
+    outcome = adapter.execute(_make_runner_request())
 
     assert outcome["status"] == ExecutionStatus.FAILED
-    assert outcome["execution_ref"] == "local:codette-grader"
+    assert outcome["execution_ref"] == "local:codette-runner"
     assert outcome["error"] == "Container launch failed: boom"

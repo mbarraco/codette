@@ -147,3 +147,35 @@ def post_submission(body: SubmissionCreate, db: Session = Depends(get_db)):
     db.commit()
     return submission
 ```
+
+## Request Tracing Rules
+- Every HTTP request is assigned a `trace_id` by `TraceIdMiddleware` in `backend/app/core/middleware.py`.
+- The middleware generates a UUID4 hex string, or propagates the client-sent `X-Trace-ID` header.
+- The `trace_id` is stored in a `ContextVar` (`backend/app/core/context.py`) and is available for the duration of the request.
+- The `trace_id` is returned to the client in the `X-Trace-ID` response header.
+- A `TraceIdFilter` in `backend/app/core/logging.py` automatically injects `trace_id` into every log record — no manual passing required.
+
+### Accessing the trace_id in application code
+```python
+from app.core.context import get_trace_id
+
+trace_id = get_trace_id()  # returns current request's trace_id or "-"
+```
+
+### Rules
+- Never pass `trace_id` as a function argument through the stack — read it from `get_trace_id()` when needed.
+- Never generate trace IDs outside the middleware — the middleware is the single source.
+- When making outbound HTTP calls to other services (e.g., worker callbacks), forward the `X-Trace-ID` header to enable distributed tracing.
+- Always register `TraceIdMiddleware` in `backend/app/api/main.py` before any routers.
+
+### Wrong — passing trace_id through the stack
+```python
+def handle_create_submission(db: Session, trace_id: str, ...) -> Submission:  # NEVER
+    service_result = create_submission(db, repo, storage, trace_id, ...)      # NEVER
+```
+
+### Wrong — generating trace_id in a handler
+```python
+def handle_create_submission(db: Session, ...) -> Submission:
+    trace_id = uuid.uuid4().hex  # NEVER — middleware handles this
+```

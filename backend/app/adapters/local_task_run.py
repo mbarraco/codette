@@ -1,3 +1,9 @@
+"""Local Docker-based adapters for runner and grader execution.
+
+Mirrors production where ``GcpRunnerAdapter`` / ``GcpGraderAdapter`` launch
+Cloud Run Jobs, but uses the Docker SDK to run sibling containers on the host.
+"""
+
 import logging
 
 from app.worker.contracts import (
@@ -12,12 +18,14 @@ logger = logging.getLogger(__name__)
 _CONTAINER_TIMEOUT_S = 120
 
 
-class LocalTaskRunAdapter:
-    """Launches runner/grader as local Docker containers.
+class _LocalContainerAdapter:
+    """Shared Docker container lifecycle logic.
 
-    Mirrors production where ``GcpTaskRunAdapter`` launches Cloud Run Jobs,
-    but uses the Docker SDK to run sibling containers on the host.
+    Not part of the public API — use ``LocalRunnerAdapter`` or
+    ``LocalGraderAdapter`` instead.
     """
+
+    container_label = "task"
 
     def __init__(
         self,
@@ -38,39 +46,29 @@ class LocalTaskRunAdapter:
 
             self._client = docker.from_env()
 
-    def execute(self, request: RunnerRequest | GraderRequest) -> ExecutionOutcome:
-        run_uuid = request["run_uuid"]
+    def _run_container(self, run_uuid: str, entrypoint: list[str]) -> ExecutionOutcome:
         logger.info(
             "Launching local container %s for run %s", self._image_name, run_uuid
         )
 
-        launch_error: Exception | None = None
-        container = None
-        for entrypoint, command in self._build_launch_specs(request):
-            try:
-                container = self._client.containers.run(
-                    image=self._image_name,
-                    entrypoint=entrypoint,
-                    command=command,
-                    environment={
-                        "STORAGE_BUCKET": self._storage_bucket,
-                        "STORAGE_EMULATOR_HOST": self._storage_emulator_host,
-                    },
-                    network=self._network,
-                    detach=True,
-                )
-                launch_error = None
-                break
-            except Exception as exc:
-                launch_error = exc
-                continue
-
-        if container is None:
-            assert launch_error is not None
+        try:
+            container = self._client.containers.run(
+                image=self._image_name,
+                name=f"codette-{self.container_label}-{run_uuid}",
+                entrypoint=entrypoint,
+                command=[run_uuid],
+                environment={
+                    "STORAGE_BUCKET": self._storage_bucket,
+                    "STORAGE_EMULATOR_HOST": self._storage_emulator_host,
+                },
+                network=self._network,
+                detach=True,
+            )
+        except Exception as exc:
             return ExecutionOutcome(
                 execution_ref=f"local:{self._image_name}",
                 status=ExecutionStatus.FAILED,
-                error=f"Container launch failed: {launch_error}",
+                error=f"Container launch failed: {exc}",
             )
 
         try:
@@ -99,18 +97,26 @@ class LocalTaskRunAdapter:
         finally:
             container.remove(force=True)
 
-    def _build_launch_specs(
-        self, request: RunnerRequest | GraderRequest
-    ) -> list[tuple[list[str] | None, list[str]]]:
-        run_uuid = request["run_uuid"]
-        # Prefer image default entrypoint (if present), then fall back to explicit
-        # python script entrypoint for images that don't define one.
-        if "runner_output_uri" in request:
-            return [
-                (None, [run_uuid]),
-                (["python", "grade.py"], [run_uuid]),
-            ]
-        return [
-            (None, [run_uuid]),
-            (["python", "run.py"], [run_uuid]),
-        ]
+
+class LocalRunnerAdapter(_LocalContainerAdapter):
+    """Launches the runner image as a local Docker container.
+
+    Implements the ``RunnerAdapter`` protocol.
+    """
+
+    container_label = "runner"
+
+    def execute(self, request: RunnerRequest) -> ExecutionOutcome:
+        return self._run_container(request["run_uuid"], ["python", "run.py"])
+
+
+class LocalGraderAdapter(_LocalContainerAdapter):
+    """Launches the grader image as a local Docker container.
+
+    Implements the ``GraderAdapter`` protocol.
+    """
+
+    container_label = "grader"
+
+    def execute(self, request: GraderRequest) -> ExecutionOutcome:
+        return self._run_container(request["run_uuid"], ["python", "grade.py"])

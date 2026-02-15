@@ -24,7 +24,8 @@
       "Bash(python3:*)",
       "Bash(node -e:*)",
       "Bash(npx vite build:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

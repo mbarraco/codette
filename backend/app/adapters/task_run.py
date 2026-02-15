@@ -1,3 +1,5 @@
+"""GCP Cloud Run Jobs adapters for runner and grader execution."""
+
 import logging
 
 from google.cloud import run_v2
@@ -11,28 +13,19 @@ from app.worker.contracts import (
 
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL_S = 5
-_TERMINAL_CONDITIONS = frozenset(
-    {
-        run_v2.Condition.State.CONDITION_SUCCEEDED,
-        run_v2.Condition.State.CONDITION_FAILED,
-    }
-)
 
+class _GcpJobAdapter:
+    """Shared Cloud Run Job execution logic.
 
-class GcpTaskRunAdapter:
-    """Launches Cloud Run Jobs to execute runner or grader tasks.
-
-    Implements both ``RunnerAdapter`` and ``GraderAdapter`` protocols —
-    the invocation mechanism is identical, only the job name differs.
+    Not part of the public API — use ``GcpRunnerAdapter`` or
+    ``GcpGraderAdapter`` instead.
     """
 
     def __init__(self, project: str, location: str, job_name: str) -> None:
         self._client = run_v2.ExecutionsClient()
         self._job_path = run_v2.JobsClient.job_path(project, location, job_name)
 
-    def execute(self, request: RunnerRequest | GraderRequest) -> ExecutionOutcome:
-        run_uuid = request["run_uuid"]
+    def _run_job(self, run_uuid: str) -> ExecutionOutcome:
         logger.info("Launching job %s for run %s", self._job_path, run_uuid)
 
         run_job_request = run_v2.RunJobRequest(
@@ -76,3 +69,23 @@ class GcpTaskRunAdapter:
             if condition.state == run_v2.Condition.State.CONDITION_FAILED:
                 messages.append(f"{condition.type_}: {condition.message}")
         return "; ".join(messages) if messages else "Execution failed (unknown reason)"
+
+
+class GcpRunnerAdapter(_GcpJobAdapter):
+    """Launches a Cloud Run Job to execute runner tasks.
+
+    Implements the ``RunnerAdapter`` protocol.
+    """
+
+    def execute(self, request: RunnerRequest) -> ExecutionOutcome:
+        return self._run_job(request["run_uuid"])
+
+
+class GcpGraderAdapter(_GcpJobAdapter):
+    """Launches a Cloud Run Job to execute grader tasks.
+
+    Implements the ``GraderAdapter`` protocol.
+    """
+
+    def execute(self, request: GraderRequest) -> ExecutionOutcome:
+        return self._run_job(request["run_uuid"])

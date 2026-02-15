@@ -3,12 +3,12 @@ import time
 from sqlalchemy import text
 
 from app.adapters.db import SessionLocal
-from app.adapters.local_task_run import LocalTaskRunAdapter
+from app.adapters.local_task_run import LocalGraderAdapter, LocalRunnerAdapter
 from app.adapters.repository.run import RunRepository
 from app.adapters.repository.submission_evaluation import SubmissionEvaluationRepository
 from app.adapters.repository.submission_queue import SubmissionQueueRepository
 from app.adapters.storage import StorageAdapter
-from app.adapters.task_run import GcpTaskRunAdapter
+from app.adapters.task_run import GcpGraderAdapter, GcpRunnerAdapter
 from app.core.logging import get_logger, setup_logging
 from app.core.settings import get_settings
 from app.worker.request_factory import ExecutionRequestFactory
@@ -31,12 +31,12 @@ def main() -> None:
 
     if settings.gcp_project is not None:
         # Production: GCP Cloud Run Jobs
-        runner_adapter = GcpTaskRunAdapter(
+        runner_adapter = GcpRunnerAdapter(
             project=settings.gcp_project,
             location=settings.gcp_location,
             job_name=settings.runner_job_name,
         )
-        grader_adapter = GcpTaskRunAdapter(
+        grader_adapter = GcpGraderAdapter(
             project=settings.gcp_project,
             location=settings.gcp_location,
             job_name=settings.grader_job_name,
@@ -44,13 +44,13 @@ def main() -> None:
     elif settings.storage_emulator_host:
         # Local mode: Docker sibling containers
         logger.info("Local mode — using Docker containers for runner/grader")
-        runner_adapter = LocalTaskRunAdapter(
+        runner_adapter = LocalRunnerAdapter(
             image_name=settings.runner_image,
             network=settings.docker_network,
             storage_bucket=settings.storage_bucket,
             storage_emulator_host=settings.storage_emulator_host,
         )
-        grader_adapter = LocalTaskRunAdapter(
+        grader_adapter = LocalGraderAdapter(
             image_name=settings.grader_image,
             network=settings.docker_network,
             storage_bucket=settings.storage_bucket,
