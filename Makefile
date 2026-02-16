@@ -6,7 +6,8 @@ E2E_DB_NAME ?= codette_e2e
         up-api up-worker \
         migrate seed restart clean setup-tests \
         test test-build test-shell \
-        e2e e2e-build
+        e2e e2e-build \
+        build-jobs
 
 ## ---------- First-time setup ----------
 
@@ -82,8 +83,8 @@ e2e-build: .env ## Rebuild e2e image, then run Playwright tests
 
 ## ---------- Tool images ----------
 
-build-tools: ## Build runner and grader images
-	$(COMPOSE) --profile tools build
+build-jobs: ## Build runner and grader images
+	$(COMPOSE) --profile jobs build
 
 ## ---------- Help ----------
 

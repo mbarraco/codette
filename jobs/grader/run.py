@@ -17,6 +17,23 @@ from pydantic import ValidationError
 from .schemas import GraderOutput, GraderRequest, HarnessResult, RunnerOutput
 
 
+def _parse_harness_result(stdout: str) -> HarnessResult | None:
+    """Parse harness JSON even when stdout includes extra non-JSON lines."""
+    candidates = [stdout]
+    candidates.extend(line for line in reversed(stdout.splitlines()) if line.strip())
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            return HarnessResult.model_validate_json(candidate)
+        except ValidationError:
+            continue
+    return None
+
+
 def main() -> None:
     run_uuid = _validate()
     bucket = _get_bucket()
@@ -98,9 +115,8 @@ def _evaluate(runner_output: RunnerOutput) -> tuple[str, str]:
             )
         return "fail", f"Runner failed: {runner_output.status}"
 
-    try:
-        harness = HarnessResult.model_validate_json(runner_output.stdout)
-    except ValidationError:
+    harness = _parse_harness_result(runner_output.stdout)
+    if harness is None:
         return "fail", "Failed to parse runner output"
 
     total = len(harness.results)

@@ -23,9 +23,13 @@ def create_submission(
     artifact_uri = storage.upload(f"{base_path}/solution.py", code.encode())
 
     if test_cases is not None:
+        runner_cases = [
+            {"input": tc.get("input", []), "expected": tc.get("output")}
+            for tc in test_cases
+        ]
         payload = {
             "function_signature": function_signature,
-            "test_cases": test_cases,
+            "test_cases": runner_cases,
         }
         storage.upload(
             f"{base_path}/test_cases.json",

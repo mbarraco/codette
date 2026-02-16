@@ -121,6 +121,14 @@ def test_evaluate_unparseable_stdout() -> None:
     assert summary == "Failed to parse runner output"
 
 
+def test_evaluate_parses_json_from_noisy_stdout() -> None:
+    stdout = 'debug import side effect\n{"results":[{"passed":true},{"passed":false}]}'
+    ro = RunnerOutput(status="ok", stdout=stdout)
+    verdict, summary = _evaluate(ro)
+    assert verdict == "fail"
+    assert summary == "1/2 tests passed"
+
+
 def test_evaluate_non_ok_runner_status() -> None:
     ro = RunnerOutput(status="timeout", stdout="")
     verdict, summary = _evaluate(ro)

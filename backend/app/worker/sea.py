@@ -76,6 +76,7 @@ class SeaWorker:
                 return entry
 
             self._evaluate_run(
+                entry=entry,
                 run=run,
                 submission_id=submission.id,
                 grader_output_uri=grader_request["output_uri"],
@@ -141,10 +142,15 @@ class SeaWorker:
         return True
 
     def _evaluate_run(
-        self, run: Run, submission_id: int, grader_output_uri: str
+        self,
+        entry: SubmissionQueue,
+        run: Run,
+        submission_id: int,
+        grader_output_uri: str,
     ) -> None:
         grader_blob = self.storage.download(grader_output_uri)
         grader_output: GraderOutput = json.loads(grader_blob)
+        summary = grader_output["summary"]
         success = grader_output["verdict"] == GraderVerdict.PASS
 
         self.eval_repo.create(
@@ -152,8 +158,12 @@ class SeaWorker:
             run_id=run.id,
             submission_id=submission_id,
             success=success,
-            metadata={"summary": grader_output["summary"]},
+            metadata={"summary": summary},
         )
+        if success:
+            self.queue_repo.mark_succeeded(self.db, entry)
+        else:
+            self.queue_repo.mark_failed(self.db, entry, error=summary)
         self.run_repo.update(self.db, run, status="done")
 
     def _mark_run_failed(

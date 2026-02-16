@@ -138,6 +138,11 @@ services:
         condition: service_healthy
       gcs:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/problems/')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     profiles:
       - e2e
 
@@ -151,6 +156,24 @@ services:
     profiles:
       - e2e
 
+  worker-e2e:
+    build:
+      context: ../backend
+      target: worker
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://codette:codette@db:5432/codette_e2e
+      STORAGE_BUCKET: codette-e2e
+      STORAGE_EMULATOR_HOST: http://gcs:4443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      api-e2e:
+        condition: service_healthy
+    profiles:
+      - e2e
+
   e2e:
     build:
       context: ../e2e
@@ -160,6 +183,7 @@ services:
       - ../e2e/results:/app/results
     depends_on:
       - web-e2e
+      - worker-e2e
     profiles:
       - e2e
 
@@ -168,14 +192,14 @@ services:
       context: ../jobs
       dockerfile: runner/Dockerfile
     profiles:
-      - tools
+      - jobs
 
   grader:
     build:
       context: ../jobs
       dockerfile: grader/Dockerfile
     profiles:
-      - tools
+      - jobs
 
 volumes:
   postgres_data:

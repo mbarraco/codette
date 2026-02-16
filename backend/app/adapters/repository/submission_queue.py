@@ -58,3 +58,8 @@ class SubmissionQueueRepository:
         """
         entry.last_error = error
         db.flush()
+
+    def mark_succeeded(self, db: Session, entry: SubmissionQueue) -> None:
+        """Clear the error once an attempt finishes successfully."""
+        entry.last_error = None
+        db.flush()

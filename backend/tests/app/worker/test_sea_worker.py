@@ -25,6 +25,15 @@ class FailingDownloadStorage(StubStorage):
         raise RuntimeError("grader output missing")
 
 
+class FailingVerdictStorage(StubStorage):
+    def download(self, _uri: str) -> bytes:
+        return (
+            b'{"schema_version":"grader_output.v1","run_uuid":"run-1",'
+            b'"verdict":"fail","summary":"Failed to parse '
+            b'runner output","metadata":null}'
+        )
+
+
 class FailingRunnerAdapter:
     def execute(self, _request) -> ExecutionOutcome:
         return ExecutionOutcome(
@@ -161,3 +170,27 @@ def test_process_next_marks_worker_failure_when_evaluation_raises(
     assert run.failure_error == "grader output missing"
     assert failed_entry.last_error == "grader output missing"
     assert failed_entry.attempt_count == 1
+
+
+def test_process_next_marks_queue_failed_when_grader_verdict_is_fail(
+    db: Session, submission: Submission
+) -> None:
+    entry = _enqueue_submission(db, submission)
+    worker = _build_worker(
+        db=db,
+        storage=FailingVerdictStorage(),
+        runner_adapter=SucceedingRunnerAdapter(),
+        grader_adapter=SucceedingGraderAdapter(),
+    )
+
+    claimed = worker.process_next()
+
+    assert claimed is not None
+    run = db.query(Run).filter_by(submission_id=submission.id).one()
+    evaluated_entry = db.query(SubmissionQueue).filter_by(id=entry.id).one()
+
+    assert run.status == "done"
+    assert run.failure_stage is None
+    assert run.failure_error is None
+    assert evaluated_entry.last_error == "Failed to parse runner output"
+    assert evaluated_entry.attempt_count == 1

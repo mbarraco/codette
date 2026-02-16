@@ -121,7 +121,7 @@ def test_local_runner_adapter_execute_post_returns_succeeded() -> None:
     assert outcome["execution_ref"] == "local:runner123"
     assert outcome["error"] is None
     call_kwargs = mock_client.containers.run.call_args.kwargs
-    assert call_kwargs["entrypoint"] == ["python", "-m", "runner.run"]
+    assert "entrypoint" not in call_kwargs
     assert call_kwargs["command"] == ["abc-123"]
     assert call_kwargs["name"] == "codette-runner-abc-123"
     assert call_kwargs["cap_drop"] == ["ALL"]
@@ -153,7 +153,7 @@ def test_local_grader_adapter_execute_post_returns_succeeded() -> None:
     assert outcome["execution_ref"] == "local:grader123"
     assert outcome["error"] is None
     call_kwargs = mock_client.containers.run.call_args.kwargs
-    assert call_kwargs["entrypoint"] == ["python", "-m", "grader.run"]
+    assert "entrypoint" not in call_kwargs
     assert call_kwargs["command"] == ["abc-123"]
     assert call_kwargs["name"] == "codette-grader-abc-123"
     assert call_kwargs["cap_drop"] == ["ALL"]

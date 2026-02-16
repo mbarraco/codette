@@ -46,7 +46,7 @@ class _LocalContainerAdapter:
 
             self._client = docker.from_env()
 
-    def _run_container(self, run_uuid: str, entrypoint: list[str]) -> ExecutionOutcome:
+    def _run_container(self, run_uuid: str) -> ExecutionOutcome:
         logger.info(
             "Launching local container %s for run %s", self._image_name, run_uuid
         )
@@ -55,7 +55,6 @@ class _LocalContainerAdapter:
             container = self._client.containers.run(
                 image=self._image_name,
                 name=f"codette-{self.container_label}-{run_uuid}",
-                entrypoint=entrypoint,
                 command=[run_uuid],
                 environment={
                     "STORAGE_BUCKET": self._storage_bucket,
@@ -112,7 +111,7 @@ class LocalRunnerAdapter(_LocalContainerAdapter):
     container_label = "runner"
 
     def execute(self, request: RunnerRequest) -> ExecutionOutcome:
-        return self._run_container(request["run_uuid"], ["python", "-m", "runner.run"])
+        return self._run_container(request["run_uuid"])
 
 
 class LocalGraderAdapter(_LocalContainerAdapter):
@@ -124,4 +123,4 @@ class LocalGraderAdapter(_LocalContainerAdapter):
     container_label = "grader"
 
     def execute(self, request: GraderRequest) -> ExecutionOutcome:
-        return self._run_container(request["run_uuid"], ["python", "-m", "grader.run"])
+        return self._run_container(request["run_uuid"])

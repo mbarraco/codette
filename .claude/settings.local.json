@@ -27,7 +27,12 @@
       "Bash(lsof:*)",
       "Bash(npm run build:*)",
       "Bash(python3.12 -m pytest:*)",
-      "Bash(docker image inspect:*)"
+      "Bash(docker image inspect:*)",
+      "Bash(COMPOSE_BASE=\"docker compose -f infra/docker-compose.yml\")",
+      "Bash($COMPOSE_BASE --profile e2e rm -sf api-e2e web-e2e worker-e2e)",
+      "Bash($COMPOSE_BASE up -d db gcs)",
+      "Bash($COMPOSE_BASE exec -T db sh -c '/scripts/wait-for-pg.sh && /scripts/reset-db.sh codette_e2e')",
+      "Bash($COMPOSE_BASE --profile e2e up -d api-e2e web-e2e worker-e2e --build)"
     ]
   }
 }

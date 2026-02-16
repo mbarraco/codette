@@ -3,11 +3,12 @@ set -eu
 
 COMPOSE_BASE="docker compose -f infra/docker-compose.yml"
 COMPOSE_E2E="$COMPOSE_BASE --profile e2e"
+COMPOSE_JOBS="$COMPOSE_BASE --profile jobs"
 DB_NAME="${E2E_DB_NAME:-codette_e2e}"
 MODE="${1:-run}"
 
 cleanup() {
-  $COMPOSE_E2E rm -sf api-e2e web-e2e >/dev/null 2>&1 || true
+  $COMPOSE_E2E rm -sf api-e2e web-e2e worker-e2e >/dev/null 2>&1 || true
 }
 
 case "$MODE" in
@@ -21,6 +22,10 @@ esac
 trap cleanup EXIT
 
 cleanup
+
+# Build runner and grader images needed by the worker's sibling containers
+$COMPOSE_JOBS build runner grader
+
 $COMPOSE_BASE up -d db gcs
 $COMPOSE_BASE exec -T db sh -c '/scripts/wait-for-pg.sh && /scripts/reset-db.sh "$1"' sh "$DB_NAME"
 

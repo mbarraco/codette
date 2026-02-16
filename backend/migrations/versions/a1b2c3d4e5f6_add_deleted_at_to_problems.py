@@ -19,7 +19,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("problems", sa.Column("title", sa.String(255), nullable=False, server_default="Untitled"))
+    op.add_column(
+        "problems",
+        sa.Column("title", sa.String(255), nullable=False, server_default="Untitled"),
+    )
     op.add_column("problems", sa.Column("test_cases", sa.JSON(), nullable=True))
     op.add_column("problems", sa.Column("deleted_at", sa.DateTime(), nullable=True))
 

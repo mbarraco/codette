@@ -47,7 +47,7 @@ def test_create_submission_uploads_test_cases(
     db: Session, storage: StorageAdapter, problem: Problem
 ) -> None:
     code = "def add(a, b):\n    return a + b\n"
-    test_cases = [{"input": [1, 2], "expected": 3}, {"input": [0, 0], "expected": 0}]
+    test_cases = [{"input": [1, 2], "output": 3}, {"input": [0, 0], "output": 0}]
     repo = SubmissionRepository()
 
     submission = create_submission(
@@ -70,14 +70,21 @@ def test_create_submission_uploads_test_cases(
 
     assert tc_blob.exists()
     uploaded = json.loads(tc_blob.download_as_text())
-    assert uploaded == {"function_signature": None, "test_cases": test_cases}
+    # Service remaps "output" → "expected" to match runner schema
+    assert uploaded == {
+        "function_signature": None,
+        "test_cases": [
+            {"input": [1, 2], "expected": 3},
+            {"input": [0, 0], "expected": 0},
+        ],
+    }
 
 
 def test_create_submission_uploads_test_cases_with_function_signature(
     db: Session, storage: StorageAdapter, problem: Problem
 ) -> None:
     code = "def add(a, b):\n    return a + b\n"
-    test_cases = [{"input": [1, 2], "expected": 3}]
+    test_cases = [{"input": [1, 2], "output": 3}]
     repo = SubmissionRepository()
 
     submission = create_submission(
@@ -99,9 +106,10 @@ def test_create_submission_uploads_test_cases_with_function_signature(
 
     assert tc_blob.exists()
     uploaded = json.loads(tc_blob.download_as_text())
+    # Service remaps "output" → "expected" to match runner schema
     assert uploaded == {
         "function_signature": "def add(a, b):",
-        "test_cases": test_cases,
+        "test_cases": [{"input": [1, 2], "expected": 3}],
     }
 
 
