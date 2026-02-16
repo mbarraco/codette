@@ -20,3 +20,6 @@
 - Register each new router in `backend/app/api/main.py`.
 - After model changes, generate an Alembic migration.
 - Run `make test` after backend changes.
+- Update seed script (`backend/scripts/dev/seed_dev_data.py`) when adding or changing models, endpoints, or auth.
+- Update e2e tests (`e2e/tests/`) when changing API contracts, routes, or UI flows.
+- Run `make e2e-build` after backend or frontend changes to verify end-to-end. This could be very slow so only use it as the final step.
