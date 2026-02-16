@@ -32,7 +32,9 @@
       "Bash($COMPOSE_BASE --profile e2e rm -sf api-e2e web-e2e worker-e2e)",
       "Bash($COMPOSE_BASE up -d db gcs)",
       "Bash($COMPOSE_BASE exec -T db sh -c '/scripts/wait-for-pg.sh && /scripts/reset-db.sh codette_e2e')",
-      "Bash($COMPOSE_BASE --profile e2e up -d api-e2e web-e2e worker-e2e --build)"
+      "Bash($COMPOSE_BASE --profile e2e up -d api-e2e web-e2e worker-e2e --build)",
+      "Bash(uv lock:*)",
+      "Bash(git status:*)"
     ]
   }
 }

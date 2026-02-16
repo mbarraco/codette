@@ -75,11 +75,11 @@ test-shell: ## Open a bash shell in the test container
 
 ## ---------- E2E tests ----------
 
-e2e: .env ## Run Playwright end-to-end tests in Docker
-	E2E_DB_NAME=$(E2E_DB_NAME) sh ./scripts/run-e2e.sh run
+e2e: .env ## Run Playwright end-to-end tests in Docker (E2E_GREP="pattern" to filter)
+	E2E_DB_NAME=$(E2E_DB_NAME) E2E_GREP="$(E2E_GREP)" sh ./scripts/run-e2e.sh run
 
 e2e-build: .env ## Rebuild e2e image, then run Playwright tests
-	E2E_DB_NAME=$(E2E_DB_NAME) sh ./scripts/run-e2e.sh build
+	E2E_DB_NAME=$(E2E_DB_NAME) E2E_GREP="$(E2E_GREP)" sh ./scripts/run-e2e.sh build
 
 ## ---------- Tool images ----------
 

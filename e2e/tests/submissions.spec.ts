@@ -1,31 +1,31 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Submission CRUD", () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ authRequest }) => {
     // Clean up: delete all existing submissions via API
-    const subRes = await request.get("/api/v1/submissions/");
+    const subRes = await authRequest.get("/api/v1/submissions/");
     const submissions = await subRes.json();
     for (const s of submissions) {
-      await request.delete(`/api/v1/submissions/${s.uuid}`);
+      await authRequest.delete(`/api/v1/submissions/${s.uuid}`);
     }
     // Clean up problems too
-    const probRes = await request.get("/api/v1/problems/");
+    const probRes = await authRequest.get("/api/v1/problems/");
     const problems = await probRes.json();
     for (const p of problems) {
-      await request.delete(`/api/v1/problems/${p.uuid}`);
+      await authRequest.delete(`/api/v1/problems/${p.uuid}`);
     }
   });
 
   test("list, create via API, and delete a submission", async ({
-    page,
-    request,
+    authedPage: page,
+    authRequest,
   }) => {
     // 1. Navigate to submissions page — empty state
     await page.goto("/submissions");
     await expect(page.getByText("No submissions yet.")).toBeVisible();
 
     // 2. Create a problem via API
-    const problemRes = await request.post("/api/v1/problems/", {
+    const problemRes = await authRequest.post("/api/v1/problems/", {
       data: {
         title: "Add Numbers",
         statement: "Return the sum of two integers.",
@@ -35,7 +35,7 @@ test.describe("Submission CRUD", () => {
     const problem = await problemRes.json();
 
     // 3. Create a submission via API
-    await request.post("/api/v1/submissions/", {
+    await authRequest.post("/api/v1/submissions/", {
       data: {
         problem_uuid: problem.uuid,
         code: "def add(a, b): return a + b",
@@ -56,11 +56,11 @@ test.describe("Submission CRUD", () => {
   });
 
   test("create submission via UI and verify queue entry on monitor", async ({
-    page,
-    request,
+    authedPage: page,
+    authRequest,
   }) => {
     // 1. Create a problem via API
-    const problemRes = await request.post("/api/v1/problems/", {
+    const problemRes = await authRequest.post("/api/v1/problems/", {
       data: {
         title: "FizzBuzz",
         statement: "Return FizzBuzz sequence.",

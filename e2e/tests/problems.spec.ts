@@ -1,16 +1,16 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Problem CRUD", () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ authRequest }) => {
     // Clean up: delete all existing problems via API
-    const response = await request.get("/api/v1/problems/");
+    const response = await authRequest.get("/api/v1/problems/");
     const problems = await response.json();
     for (const p of problems) {
-      await request.delete(`/api/v1/problems/${p.uuid}`);
+      await authRequest.delete(`/api/v1/problems/${p.uuid}`);
     }
   });
 
-  test("create, list, edit, and delete a problem", async ({ page }) => {
+  test("create, list, edit, and delete a problem", async ({ authedPage: page }) => {
     // 1. Navigate to problems page — empty state
     await page.goto("/problems");
     await expect(page.getByText("No problems yet.")).toBeVisible();

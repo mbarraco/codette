@@ -9,7 +9,7 @@ attempt=1
 while [ "$attempt" -le "$RETRIES" ]; do
   # Check both web server and API health (proxied through web)
   if curl -so /dev/null "$URL" 2>/dev/null && \
-     curl -sf "$URL/api/v1/problems/" >/dev/null 2>&1; then
+     curl -sf "$URL/api/health" >/dev/null 2>&1; then
     echo "[wait] web ready on attempt $attempt/$RETRIES"
     exit 0
   fi

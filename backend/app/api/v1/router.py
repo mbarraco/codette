@@ -1,11 +1,15 @@
 from fastapi import APIRouter
 
+from app.api.v1.routes.auth import router as auth_router
+from app.api.v1.routes.invitation import router as invitation_router
 from app.api.v1.routes.problem import router as problem_router
 from app.api.v1.routes.queue import router as queue_router
 from app.api.v1.routes.run import router as run_router
 from app.api.v1.routes.submission import router as submission_router
 
 router = APIRouter()
+router.include_router(auth_router, prefix="/auth", tags=["auth"])
+router.include_router(invitation_router, prefix="/invitations", tags=["invitations"])
 router.include_router(problem_router, prefix="/problems", tags=["problems"])
 router.include_router(queue_router, prefix="/queue", tags=["queue"])
 router.include_router(run_router, prefix="/runs", tags=["runs"])

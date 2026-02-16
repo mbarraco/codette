@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     runner_job_name: str = "codette-runner"
     grader_job_name: str = "codette-grader"
 
+    # Auth / JWT
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+
     # Local mode settings (used when GCP_PROJECT is not set)
     runner_image: str = "codette-runner"
     grader_image: str = "codette-grader"

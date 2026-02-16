@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.adapters.db import SessionLocal
-from app.models import Problem
+from app.models import Invitation, Problem, User
+from app.models.user import UserRole
+from app.services.password import hash_password
 
 
 @dataclass(frozen=True)
@@ -17,6 +19,13 @@ class ProblemSeed:
     examples: str | None
     test_cases: list[dict] | None
     function_signature: str
+
+
+@dataclass(frozen=True)
+class UserSeed:
+    email: str
+    password: str
+    role: UserRole
 
 
 SEED_PROBLEMS: tuple[ProblemSeed, ...] = (
@@ -90,6 +99,12 @@ SEED_PROBLEMS: tuple[ProblemSeed, ...] = (
     ),
 )
 
+SEED_USERS: tuple[UserSeed, ...] = (
+    UserSeed(email="admin@codette.dev", password="password", role=UserRole.ADMIN),
+    UserSeed(email="teacher@codette.dev", password="password", role=UserRole.TEACHER),
+    UserSeed(email="student@codette.dev", password="password", role=UserRole.STUDENT),
+)
+
 
 def _upsert_problem(db: Session, seed: ProblemSeed) -> bool:
     problem = db.query(Problem).filter(Problem.uuid == seed.uuid).one_or_none()
@@ -120,6 +135,34 @@ def _upsert_problem(db: Session, seed: ProblemSeed) -> bool:
     return False
 
 
+def _upsert_user(db: Session, seed: UserSeed) -> bool:
+    """Create user and invitation if they don't exist. Return True if created."""
+    existing = db.query(User).filter(User.email == seed.email).one_or_none()
+    if existing is not None:
+        return False
+
+    # Create invitation (mark as used)
+    invitation = (
+        db.query(Invitation).filter(Invitation.email == seed.email).one_or_none()
+    )
+    if invitation is None:
+        from sqlalchemy import func
+
+        invitation = Invitation(email=seed.email, role=seed.role, used_at=func.now())
+        db.add(invitation)
+        db.flush()
+
+    db.add(
+        User(
+            email=seed.email,
+            password_hash=hash_password(seed.password),
+            role=seed.role,
+        )
+    )
+    db.flush()
+    return True
+
+
 def main() -> int:
     db = SessionLocal()
     try:
@@ -131,11 +174,17 @@ def main() -> int:
             else:
                 updated += 1
 
+        users_created = 0
+        for seed in SEED_USERS:
+            if _upsert_user(db, seed):
+                users_created += 1
+
         db.commit()
         print(
             "[seed] development data seeded successfully "
             f"(problems_total={len(SEED_PROBLEMS)}, "
-            f"created={created}, updated={updated})"
+            f"created={created}, updated={updated}, "
+            f"users_created={users_created})"
         )
         return 0
     except Exception:

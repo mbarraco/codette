@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiFetch } from "../utils/apiFetch";
 
 type UseFetchOptions = {
   pollingInterval?: number;
@@ -22,7 +23,7 @@ export function useFetch<T>(
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       if (mountedRef.current) {

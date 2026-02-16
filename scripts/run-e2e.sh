@@ -29,8 +29,16 @@ $COMPOSE_JOBS build runner grader
 $COMPOSE_BASE up -d db gcs
 $COMPOSE_BASE exec -T db sh -c '/scripts/wait-for-pg.sh && /scripts/reset-db.sh "$1"' sh "$DB_NAME"
 
-if [ "$MODE" = "build" ]; then
-  $COMPOSE_E2E run --rm --build e2e
+if [ -n "${E2E_GREP:-}" ]; then
+  if [ "$MODE" = "build" ]; then
+    $COMPOSE_E2E run --rm --build -e "E2E_GREP=$E2E_GREP" e2e
+  else
+    $COMPOSE_E2E run --rm -e "E2E_GREP=$E2E_GREP" e2e
+  fi
 else
-  $COMPOSE_E2E run --rm e2e
+  if [ "$MODE" = "build" ]; then
+    $COMPOSE_E2E run --rm --build e2e
+  else
+    $COMPOSE_E2E run --rm e2e
+  fi
 fi

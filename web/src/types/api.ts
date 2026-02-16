@@ -1,3 +1,15 @@
+export type AuthUser = {
+  uuid: string;
+  email: string;
+  role: string;
+  created_at: string;
+};
+
+export type LoginResponse = {
+  access_token: string;
+  token_type: string;
+};
+
 export type TestCase = {
   input: unknown[];
   output: unknown;

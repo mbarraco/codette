@@ -6,6 +6,7 @@ import { EditorView } from "@codemirror/view";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import type { Submission, ProblemOption } from "../types/api";
 import { useFetch } from "../hooks/useFetch";
+import { apiFetch } from "../utils/apiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
 import styles from "./SubmissionsPage.module.css";
@@ -160,7 +161,7 @@ function SubmissionsPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/v1/submissions/", {
+      const res = await apiFetch("/api/v1/submissions/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ problem_uuid: selectedProblem, code }),
@@ -182,7 +183,7 @@ function SubmissionsPage() {
 
   const handleDelete = async (s: Submission) => {
     if (!confirm("Delete this submission?")) return;
-    await fetch(`/api/v1/submissions/${s.uuid}`, { method: "DELETE" });
+    await apiFetch(`/api/v1/submissions/${s.uuid}`, { method: "DELETE" });
     refetch();
   };
 

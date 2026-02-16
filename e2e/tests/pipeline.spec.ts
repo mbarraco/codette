@@ -1,29 +1,29 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Pipeline end-to-end", () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ authRequest }) => {
     // Clean up submissions first (they reference problems)
-    const subRes = await request.get("/api/v1/submissions/");
+    const subRes = await authRequest.get("/api/v1/submissions/");
     const submissions = await subRes.json();
     for (const s of submissions) {
-      await request.delete(`/api/v1/submissions/${s.uuid}`);
+      await authRequest.delete(`/api/v1/submissions/${s.uuid}`);
     }
     // Then clean up problems
-    const probRes = await request.get("/api/v1/problems/");
+    const probRes = await authRequest.get("/api/v1/problems/");
     const problems = await probRes.json();
     for (const p of problems) {
-      await request.delete(`/api/v1/problems/${p.uuid}`);
+      await authRequest.delete(`/api/v1/problems/${p.uuid}`);
     }
   });
 
   test("submit correct code and verify it passes on monitor", async ({
-    page,
-    request,
+    authedPage: page,
+    authRequest,
   }) => {
     test.slow(); // triple timeout — worker + runner + grader containers need time
 
     // 1. Create a problem with test cases via API
-    const problemRes = await request.post("/api/v1/problems/", {
+    const problemRes = await authRequest.post("/api/v1/problems/", {
       data: {
         title: "Add Numbers",
         statement: "Return the sum of two integers.",

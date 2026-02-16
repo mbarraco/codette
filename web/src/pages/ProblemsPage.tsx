@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import type { TestCase, Problem } from "../types/api";
 import { useFetch } from "../hooks/useFetch";
+import { apiFetch } from "../utils/apiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/DataTable";
 import styles from "./ProblemsPage.module.css";
@@ -136,12 +137,12 @@ function ProblemsPage() {
 
     try {
       const res = editingUuid
-        ? await fetch(`/api/v1/problems/${editingUuid}`, {
+        ? await apiFetch(`/api/v1/problems/${editingUuid}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           })
-        : await fetch("/api/v1/problems/", {
+        : await apiFetch("/api/v1/problems/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -163,7 +164,7 @@ function ProblemsPage() {
 
   const handleDelete = async (p: Problem) => {
     if (!confirm(`Delete problem "${p.title}"?`)) return;
-    await fetch(`/api/v1/problems/${p.uuid}`, { method: "DELETE" });
+    await apiFetch(`/api/v1/problems/${p.uuid}`, { method: "DELETE" });
     refetch();
   };
 

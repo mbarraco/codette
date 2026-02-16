@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.adapters.storage import StorageAdapter
 from app.core.settings import TestSettings
-from app.models import Base, Problem, Submission
+from app.models import Base, Invitation, Problem, Submission, User
+from app.models.user import UserRole
+from app.services.password import hash_password
 
 RESOURCES_DIR = Path(__file__).resolve().parent / "resources"
 
@@ -81,3 +83,35 @@ def _gcs_bucket():
 @pytest.fixture()
 def storage(_gcs_bucket) -> StorageAdapter:
     return StorageAdapter(test_settings.storage_bucket)
+
+
+@pytest.fixture()
+def unused_invitation(db: Session) -> Invitation:
+    inv = Invitation(email="invited@test.com", role=UserRole.STUDENT)
+    db.add(inv)
+    db.flush()
+    return inv
+
+
+@pytest.fixture()
+def student_user(db: Session) -> User:
+    user = User(
+        email="student@test.com",
+        password_hash=hash_password("password123"),
+        role=UserRole.STUDENT,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+@pytest.fixture()
+def admin_user(db: Session) -> User:
+    user = User(
+        email="admin@test.com",
+        password_hash=hash_password("password123"),
+        role=UserRole.ADMIN,
+    )
+    db.add(user)
+    db.flush()
+    return user

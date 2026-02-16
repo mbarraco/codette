@@ -6,9 +6,9 @@ from app.models import Problem
 
 
 def test_api_v1_problems_uuid_get_returns_problem(
-    client: TestClient, problem: Problem
+    auth_client: TestClient, problem: Problem
 ) -> None:
-    response = client.get(f"/api/v1/problems/{problem.uuid}")
+    response = auth_client.get(f"/api/v1/problems/{problem.uuid}")
     assert response.status_code == 200
     body = response.json()
     assert body["uuid"] == str(problem.uuid)
@@ -21,16 +21,16 @@ def test_api_v1_problems_uuid_get_returns_problem(
 
 
 def test_api_v1_problems_uuid_get_returns_404_when_not_found(
-    client: TestClient,
+    auth_client: TestClient,
 ) -> None:
-    response = client.get(f"/api/v1/problems/{uuid.uuid4()}")
+    response = auth_client.get(f"/api/v1/problems/{uuid.uuid4()}")
     assert response.status_code == 404
 
 
 def test_api_v1_problems_post_returns_201_with_problem(
-    client: TestClient,
+    admin_client: TestClient,
 ) -> None:
-    response = client.post(
+    response = admin_client.post(
         "/api/v1/problems/",
         json={
             "title": "Multiply",
@@ -53,14 +53,14 @@ def test_api_v1_problems_post_returns_201_with_problem(
 
 
 def test_api_v1_problems_post_returns_201_with_test_cases(
-    client: TestClient,
+    admin_client: TestClient,
 ) -> None:
     test_cases = [
         {"input": [2, 3], "output": 6},
         {"input": [0, 5], "output": 0},
         {"input": [-1, 4], "output": -4},
     ]
-    response = client.post(
+    response = admin_client.post(
         "/api/v1/problems/",
         json={
             "title": "Multiply",
@@ -76,9 +76,9 @@ def test_api_v1_problems_post_returns_201_with_test_cases(
 
 
 def test_api_v1_problems_post_returns_422_when_title_missing(
-    client: TestClient,
+    admin_client: TestClient,
 ) -> None:
-    response = client.post(
+    response = admin_client.post(
         "/api/v1/problems/",
         json={"statement": "Some statement."},
     )
@@ -86,24 +86,26 @@ def test_api_v1_problems_post_returns_422_when_title_missing(
 
 
 def test_api_v1_problems_post_returns_422_when_statement_missing(
-    client: TestClient,
+    admin_client: TestClient,
 ) -> None:
-    response = client.post("/api/v1/problems/", json={"title": "Some title"})
+    response = admin_client.post("/api/v1/problems/", json={"title": "Some title"})
     assert response.status_code == 422
 
 
 def test_api_v1_problems_post_returns_422_when_function_signature_missing(
-    client: TestClient,
+    admin_client: TestClient,
 ) -> None:
-    response = client.post(
+    response = admin_client.post(
         "/api/v1/problems/",
         json={"title": "Some title", "statement": "Some statement."},
     )
     assert response.status_code == 422
 
 
-def test_api_v1_problems_get_returns_list(client: TestClient, problem: Problem) -> None:
-    response = client.get("/api/v1/problems/")
+def test_api_v1_problems_get_returns_list(
+    auth_client: TestClient, problem: Problem
+) -> None:
+    response = auth_client.get("/api/v1/problems/")
     assert response.status_code == 200
     body = response.json()
     assert len(body) >= 1
@@ -111,17 +113,17 @@ def test_api_v1_problems_get_returns_list(client: TestClient, problem: Problem) 
 
 
 def test_api_v1_problems_get_returns_empty_list(
-    client: TestClient,
+    auth_client: TestClient,
 ) -> None:
-    response = client.get("/api/v1/problems/")
+    response = auth_client.get("/api/v1/problems/")
     assert response.status_code == 200
     assert response.json() == []
 
 
 def test_api_v1_problems_uuid_patch_updates_fields(
-    client: TestClient, problem: Problem
+    admin_client: TestClient, problem: Problem
 ) -> None:
-    response = client.patch(
+    response = admin_client.patch(
         f"/api/v1/problems/{problem.uuid}",
         json={"title": "Updated Title", "statement": "Updated statement."},
     )
@@ -135,10 +137,10 @@ def test_api_v1_problems_uuid_patch_updates_fields(
 
 
 def test_api_v1_problems_uuid_patch_updates_test_cases(
-    client: TestClient, problem: Problem
+    admin_client: TestClient, problem: Problem
 ) -> None:
     test_cases = [{"input": [1, 2], "output": 3}]
-    response = client.patch(
+    response = admin_client.patch(
         f"/api/v1/problems/{problem.uuid}",
         json={"test_cases": test_cases},
     )
@@ -149,9 +151,9 @@ def test_api_v1_problems_uuid_patch_updates_test_cases(
 
 
 def test_api_v1_problems_uuid_patch_returns_404_when_not_found(
-    client: TestClient,
+    admin_client: TestClient,
 ) -> None:
-    response = client.patch(
+    response = admin_client.patch(
         f"/api/v1/problems/{uuid.uuid4()}",
         json={"statement": "Does not matter."},
     )
@@ -159,9 +161,9 @@ def test_api_v1_problems_uuid_patch_returns_404_when_not_found(
 
 
 def test_api_v1_problems_uuid_patch_rejects_null_function_signature(
-    client: TestClient, problem: Problem
+    admin_client: TestClient, problem: Problem
 ) -> None:
-    response = client.patch(
+    response = admin_client.patch(
         f"/api/v1/problems/{problem.uuid}",
         json={"function_signature": None},
     )
@@ -169,18 +171,18 @@ def test_api_v1_problems_uuid_patch_rejects_null_function_signature(
 
 
 def test_api_v1_problems_uuid_delete_returns_204(
-    client: TestClient, problem: Problem
+    admin_client: TestClient, problem: Problem
 ) -> None:
-    response = client.delete(f"/api/v1/problems/{problem.uuid}")
+    response = admin_client.delete(f"/api/v1/problems/{problem.uuid}")
     assert response.status_code == 204
 
     # GET after delete returns 404
-    response = client.get(f"/api/v1/problems/{problem.uuid}")
+    response = admin_client.get(f"/api/v1/problems/{problem.uuid}")
     assert response.status_code == 404
 
 
 def test_api_v1_problems_uuid_delete_returns_404_when_not_found(
-    client: TestClient,
+    admin_client: TestClient,
 ) -> None:
-    response = client.delete(f"/api/v1/problems/{uuid.uuid4()}")
+    response = admin_client.delete(f"/api/v1/problems/{uuid.uuid4()}")
     assert response.status_code == 404

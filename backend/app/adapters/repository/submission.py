@@ -18,7 +18,12 @@ class SubmissionRepository:
         return (
             db.query(Submission)
             .filter(Submission.uuid == submission_uuid, Submission.deleted_at.is_(None))
-            .options(selectinload(Submission.problem))
+            .options(
+                selectinload(Submission.problem),
+                selectinload(Submission.runs),
+                selectinload(Submission.queue_entries),
+                selectinload(Submission.evaluations),
+            )
             .one_or_none()
         )
 

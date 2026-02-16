@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { Problem, SubmissionSummary } from "../types/api";
 import { useFetch } from "../hooks/useFetch";
+import { apiFetch } from "../utils/apiFetch";
 import styles from "./ProblemPage.module.css";
 
 type SubmitState = "idle" | "submitting" | "success" | "error";
@@ -29,7 +30,7 @@ function ProblemPage() {
     setSubmitError(null);
 
     try {
-      const response = await fetch("/api/v1/submissions/", {
+      const response = await apiFetch("/api/v1/submissions/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ problem_uuid: uuid, code }),

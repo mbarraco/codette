@@ -7,4 +7,4 @@ RUN npm install
 
 COPY . .
 
-CMD ["sh", "-c", "sh /app/scripts/wait-for-web.sh && npx playwright test"]
+CMD ["sh", "-c", "sh /app/scripts/wait-for-web.sh && npx playwright test ${E2E_GREP:+--grep \"$E2E_GREP\"}"]

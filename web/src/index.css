@@ -189,6 +189,8 @@ button:disabled {
 
 /* Form elements */
 input[type="text"],
+input[type="email"],
+input[type="password"],
 textarea {
   display: block;
   width: 100%;
@@ -202,6 +204,8 @@ textarea {
 }
 
 input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
 textarea:focus {
   outline: none;
   border-color: var(--color-blue);
@@ -325,4 +329,57 @@ tbody tr:hover {
 .error-text {
   color: var(--color-red);
   font-size: 0.875rem;
+}
+
+/* Nav right section */
+.navRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navRight span {
+  color: var(--color-gray-200);
+  font-size: 0.85rem;
+}
+
+.navRight button {
+  background: transparent;
+  border: 1px solid var(--color-gray-300);
+  color: var(--color-gray-200);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.navRight button:hover {
+  color: var(--color-white);
+  border-color: var(--color-white);
+  background: transparent;
+}
+
+/* Auth pages */
+.authPage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 3rem);
+}
+
+.authForm {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.authForm h1 {
+  text-align: center;
+}
+
+.authForm .footer {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-gray-300);
 }
