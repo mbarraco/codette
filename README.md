@@ -2,6 +2,12 @@
 
 Mini-LeetCode platform for coding challenges.
 
+## Project Status
+
+> Warning: Codette is under active development and not production-ready.
+> API contracts, database schema, and UI behavior may change without notice.
+> Expect rough edges and occasional instability while core features evolve.
+
 ## Project Structure
 
 ```
@@ -18,6 +24,25 @@ codette/
 │   └── grader/        # Output comparison service
 └── infra/             # Docker Compose configuration
 ```
+
+## Architecture Angle and Style
+
+Codette uses a pragmatic layered architecture with explicit boundaries:
+
+- Backend request flow is intentionally thin and directional:
+  `routes -> handlers -> services -> adapters -> models`.
+  - Routes own HTTP concerns.
+  - Handlers own orchestration and dependency wiring.
+  - Services own business logic.
+  - Adapters own infrastructure boundaries (DB repositories, storage, task execution).
+- Public API contracts are schema-first (Pydantic v2) and expose UUIDs instead of internal DB IDs.
+- The evaluation pipeline is asynchronous:
+  submission -> queue entry -> worker -> runner job -> grader job -> evaluation.
+- Worker execution is adapter-driven:
+  - Local mode uses Docker sibling containers (`LocalRunnerAdapter` / `LocalGraderAdapter`).
+  - Production-oriented mode can use GCP job adapters.
+- Frontend is a React + Vite SPA with route-level pages, shared components, an auth context, and a single fetch abstraction (`useFetch` for reads, `apiFetch` for auth-aware requests).
+- Observability is built in via request trace IDs propagated through middleware and logging.
 
 ## Quick Start
 
@@ -57,7 +82,7 @@ curl http://localhost:8000/health
 
 ### Building Runner/Grader Images
 
-These are placeholder images for future implementation:
+These images are used by the worker pipeline (especially in local E2E runs):
 
 ```bash
 docker compose -f infra/docker-compose.yml build runner grader
@@ -107,6 +132,50 @@ alembic revision --autogenerate -m "description"
 # Run migrations
 alembic upgrade head
 ```
+
+## Testing
+
+### Backend tests
+
+```bash
+make test
+```
+
+### End-to-End tests (Playwright)
+
+```bash
+# Run with current images
+make e2e
+
+# Rebuild e2e image before running
+make e2e-build
+
+# Optional: run a subset
+E2E_GREP="Auth API|Pipeline" make e2e
+```
+
+Current E2E coverage (from `e2e/tests/*.spec.ts`):
+
+- `auth.spec.ts`
+  - login success/failure
+  - `/auth/me` token validation
+  - unauthenticated access rejection
+  - invitation-based registration
+  - RBAC checks (student cannot create invitations/problems)
+- `problems.spec.ts`
+  - problem CRUD via UI (create, list, edit, delete)
+  - test-case entry in the problem form
+  - empty-state behavior
+- `submissions.spec.ts`
+  - submission list/delete flow
+  - submission creation via API and via UI editor
+  - monitor-page visibility and problem-link navigation
+- `pipeline.spec.ts`
+  - full async evaluation path:
+    create problem with test cases -> submit code -> monitor shows `passed`
+  - queue attempt count visibility in monitor
+
+The Playwright fixture seeds and authenticates dev users (`admin`, `teacher`, `student`) and runs Chromium headless in Docker.
 
 ## Pre-commit Hooks
 
