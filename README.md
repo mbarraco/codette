@@ -8,6 +8,8 @@ Mini-LeetCode platform for coding challenges.
 > API contracts, database schema, and UI behavior may change without notice.
 > Expect rough edges and occasional instability while core features evolve.
 
+> AI-assisted changes in this repository are guided by rule documents under `.claude/rules/` (for example, `.claude/rules/infra.md` for environment and Docker wiring). I use these as the canonical constraints for architecture, API layering, testing, and frontend conventions so generated changes stay consistent with project standards and reduce drift.
+
 ## Project Structure
 
 ```
